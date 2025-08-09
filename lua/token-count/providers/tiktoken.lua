@@ -6,14 +6,14 @@ function M.count_tokens_async(text, encoding, callback)
 
 	-- Use the plugin's managed virtual environment
 	local venv = require("token-count.venv")
-	
+
 	-- Check if venv is ready
 	local status = venv.get_status()
 	if not status.ready then
 		callback(nil, "Virtual environment not ready. Run :TokenCountVenvSetup to initialize.")
 		return
 	end
-	
+
 	local python_path = venv.get_python_path()
 	local cmd = { python_path, script_path, encoding, text }
 
@@ -58,23 +58,24 @@ function M.count_tokens_sync(text, encoding)
 
 	-- Use the plugin's managed virtual environment
 	local venv = require("token-count.venv")
-	
+
 	-- Check if venv is ready
 	local status = venv.get_status()
 	if not status.ready then
 		return nil, "Virtual environment not ready. Run :TokenCountVenvSetup to initialize."
 	end
-	
+
 	local python_path = venv.get_python_path()
 	local cmd = { python_path, script_path, encoding, text }
 	local result = vim.system(cmd, { text = true }):wait()
 
 	if result.code == 0 then
-		local token_count = tonumber(result.stdout:gsub("%s+", ""))
+		local cleaned_output = result.stdout:gsub("%s+", "")
+		local token_count = tonumber(cleaned_output)
 		if token_count then
 			return token_count, nil
 		else
-			return nil, "Invalid token count returned: " .. result.stdout
+			return nil, "Invalid token count returned: " .. cleaned_output
 		end
 	else
 		return nil, "Tiktoken error: " .. (result.stderr or "Unknown error")

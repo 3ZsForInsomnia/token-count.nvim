@@ -310,13 +310,19 @@ local function get_all_buffers_display()
 	local config_ok, config = pcall(require, "token-count.config")
 
 	if not (token_count_ok and models_ok and config_ok) then
-		return "" -- Plugin modules not available
+		vim.notify(
+			"Token Count: Unable to load required modules for lualine integration.\nToken-count.nvim is not loaded!",
+			vim.log.levels.WARN
+		)
+		return ""
 	end
-
-	-- Get configuration
+	--
+	-- -- Get configuration
 	local current_config = config.get()
 	local model_config = models.get_model(current_config.model)
+
 	if not model_config then
+		vim.notify("Token Count: Invalid model configuration for lualine integration", vim.log.levels.WARN)
 		return ""
 	end
 
@@ -339,11 +345,11 @@ local function get_all_buffers_display()
 		end
 	end)
 
-	-- Return cached value or empty if no cache
+	-- -- Return cached value or empty if no cache
 	if cache.all_buffers.token_count then
 		return string.format("🪙 %d (%.1f%%)", cache.all_buffers.token_count, cache.all_buffers.percentage)
 	else
-		return ""
+		return "🪙 0 (0.0%)"
 	end
 end
 
@@ -382,16 +388,20 @@ M.all_buffers = {
 	end,
 	color = function()
 		-- Change color based on context window usage
-		if cache.all_buffers.percentage then
+		-- Add defensive checks to prevent accessing undefined values
+		if cache.all_buffers and cache.all_buffers.percentage and type(cache.all_buffers.percentage) == "number" then
 			local config_ok, config = pcall(require, "token-count.config")
 			if config_ok then
-				local threshold = config.get().context_warning_threshold * 100
-				if cache.all_buffers.percentage > threshold then
-					return { fg = "#e06c75" } -- Red for warning
+				local current_config = config.get()
+				if current_config and current_config.context_warning_threshold then
+					local threshold = current_config.context_warning_threshold * 100
+					if cache.all_buffers.percentage > threshold then
+						return { fg = "#e06c75" } -- Red for warning
+					end
 				end
 			end
 		end
-		return { fg = "#61afef" } -- Blue for normal
+		return { fg = "#61afef" } -- Blue for normal (always return a valid color)
 	end,
 }
 

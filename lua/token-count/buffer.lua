@@ -93,7 +93,7 @@ local function is_valid_filetype(filetype)
 
 	-- Handle empty or nil filetype
 	if not filetype or filetype == "" then
-		return true -- Allow files without specific filetype
+		return false -- Allow files without specific filetype
 	end
 
 	-- Check if filetype is in our valid list
@@ -112,7 +112,6 @@ end
 function M.get_current_buffer_if_valid()
 	local buffer_id = vim.api.nvim_get_current_buf()
 	local filetype = vim.api.nvim_buf_get_option(buffer_id, "filetype")
-
 	local valid = is_valid_filetype(filetype)
 
 	if valid then

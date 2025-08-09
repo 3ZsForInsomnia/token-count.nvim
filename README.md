@@ -17,7 +17,7 @@ A Neovim plugin for counting tokens in text files using various AI model tokeniz
 ### Prerequisites
 
 - Neovim 0.9.0 or later
-- Python 3.7 or later (must be available as `python3` in PATH)
+- Python 3.7 or later
 
 ### Using lazy.nvim
 
@@ -62,7 +62,7 @@ require("token-count").setup({
 })
 ```
 
-### Available Models
+### Supported Models
 
 - `openai/gpt-4` - GPT-4 (8K context)
 - `openai/gpt-4-32k` - GPT-4 32K
@@ -162,6 +162,5 @@ pip install anthropic
 ## To Do
 
 - [ ] Fix lualine all_buffers integration
-- [ ] Test/fix Neo-Tree integrations
 - [ ] Test/fix CodeCompanion integration
 - [ ] Add support for more model providers (Gemini?)

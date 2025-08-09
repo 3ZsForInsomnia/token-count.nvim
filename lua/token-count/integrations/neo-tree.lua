@@ -13,20 +13,12 @@ local config = {
 		icon_position = "right", -- "left", "right", "none"
 		show_decimals_threshold = 10000, -- Show decimals under 10k
 	},
-	source = {
-		enabled = true,
-		name = "token_count",
-		display_name = "Token Count",
-		-- Extensible for future features
-		components = {
-			token_count = true,
-			-- Future: context_usage = true, model_info = true, etc.
-		},
-	},
 }
 
---- Cache for token counts to avoid recalculation
 local cache = {}
+
+--- Pending async requests to avoid duplicate calls
+local pending_requests = {}
 
 --- Format token count for display
 --- @param count number Token count
@@ -50,7 +42,7 @@ local function format_token_count(count)
 	return tostring(count)
 end
 
---- Get token count for a file path (cached)
+--- Get token count for a file path (cached with async updates)
 --- @param file_path string Path to the file
 --- @return string|nil formatted_count Formatted token count or nil if unavailable
 local function get_file_token_count(file_path)
@@ -61,12 +53,17 @@ local function get_file_token_count(file_path)
 		return cached.formatted_count
 	end
 
-	-- Try to get token count
-	local buffer_ops_ok, buffer_ops = pcall(require, "token-count.utils.buffer_ops")
+	-- Check if we already have a pending request for this file
+	if pending_requests[cache_key] then
+		-- Return cached value if available, even if expired
+		return cached and cached.formatted_count
+	end
+
+	-- Try to get dependencies
 	local models_ok, models = pcall(require, "token-count.models.utils")
 	local config_module_ok, config_module = pcall(require, "token-count.config")
 
-	if not (buffer_ops_ok and models_ok and config_module_ok) then
+	if not (models_ok and config_module_ok) then
 		return nil
 	end
 
@@ -96,73 +93,85 @@ local function get_file_token_count(file_path)
 		return nil
 	end
 
-	-- Count tokens synchronously (for immediate display)
-	local count, error = provider.count_tokens_sync(content, model_config.encoding)
-	if count then
-		local formatted = format_token_count(count)
-		cache[cache_key] = { formatted_count = formatted, timestamp = vim.loop.hrtime() / 1000000 }
-		return formatted
-	end
+	-- Mark as pending and start async count
+	pending_requests[cache_key] = true
 
-	return nil
+	-- Count tokens asynchronously
+	provider.count_tokens_async(content, model_config.encoding, function(count, error)
+		-- Clear pending request
+		pending_requests[cache_key] = nil
+
+		if count then
+			local formatted = format_token_count(count)
+			cache[cache_key] = { formatted_count = formatted, timestamp = vim.loop.hrtime() / 1000000 }
+
+			-- Trigger neo-tree refresh to update display
+			vim.schedule(function()
+				local neo_tree_ok, manager = pcall(require, "neo-tree.sources.manager")
+				if neo_tree_ok then
+					local state = manager.get_state("filesystem")
+					if state then
+						manager.refresh("filesystem")
+					end
+				end
+			end)
+		end
+	end)
+
+	-- Return cached value if available, or nil for first time
+	return cached and cached.formatted_count
 end
 
---- Token count component for file renderer
-local token_count_component = {
-	provider = function(props)
-		local node = props.tree.state.tree:get_node()
-		if node.type ~= "file" then
-			return ""
-		end
+--- Token count component function for neo-tree
+--- @param config table Component configuration
+--- @param node table Neo-tree node
+--- @param _ table State (unused)
+--- @return table Component result with text and highlight
+local function token_count_component(config, node, _)
+	if node.type ~= "file" then
+		return {}
+	end
 
-		local count = get_file_token_count(node.path)
-		if not count then
-			return ""
-		end
+	local count = get_file_token_count(node:get_id())
+	if not count then
+		return {}
+	end
 
-		local display = ""
+	local display = ""
 
-		-- Add icon based on configuration
-		if config.component.show_icon then
-			local icon = config.component.icon
-			-- Fallback to simple character if icon might not render
-			if icon == "🪙" then
-				-- Simple heuristic: if we can't determine font support, use fallback
-				icon = config.component.icon_fallback
-			end
+	-- Add icon based on configuration
+	if M.config.component.show_icon then
+		local icon = M.config.component.icon
 
-			if config.component.icon_position == "left" then
-				display = icon .. count
-			elseif config.component.icon_position == "right" then
-				display = count .. icon
-			else
-				display = count
-			end
+		if M.config.component.icon_position == "left" then
+			display = icon .. count
+		elseif M.config.component.icon_position == "right" then
+			display = count .. icon
 		else
 			display = count
 		end
+	else
+		display = count
+	end
 
-		return display
-	end,
-	highlight = "TokenCountComponent",
-}
+	return {
+		text = " " .. display,
+		highlight = config.highlight or "TokenCountComponent",
+	}
+end
 
 --- Setup the neo-tree integration
 --- @param user_config table|nil User configuration options
 function M.setup(user_config)
 	-- Merge user config
 	if user_config then
-		config = vim.tbl_deep_extend("force", config, user_config)
-	end
-
-	-- Register custom component
-	if config.component.enabled then
-		local renderer = require("neo-tree.ui.renderer")
-		renderer.define_component("token_count", token_count_component)
+		M.config = vim.tbl_deep_extend("force", config, user_config)
+	else
+		M.config = config
 	end
 
 	-- Register custom source
-	if config.source.enabled then
+	if M.config.source.enabled then
 		M.register_source()
 	end
 
@@ -170,56 +179,19 @@ function M.setup(user_config)
 	vim.api.nvim_set_hl(0, "TokenCountComponent", { fg = "#98c379", default = true })
 end
 
---- Register the token count source for neo-tree
-function M.register_source()
-	local sources = require("neo-tree.sources.manager")
-
-	local token_count_source = {
-		name = config.source.name,
-		display_name = config.source.display_name,
-
-		-- Use filesystem as base and extend it
-		setup = function(state, opts)
-			local filesystem = require("neo-tree.sources.filesystem")
-			return filesystem.setup(state, opts)
-		end,
-
-		refresh = function(state)
-			local filesystem = require("neo-tree.sources.filesystem")
-			-- Clear cache on refresh
-			cache = {}
-			return filesystem.refresh(state)
-		end,
-
-		navigate = function(state, path)
-			local filesystem = require("neo-tree.sources.filesystem")
-			return filesystem.navigate(state, path)
-		end,
-
-		-- Custom renderers that include token count
-		renderers = {
-			file = {
-				{ "icon" },
-				{ "name", use_git_status_colors = true },
-				{ "token_count" },
-				{ "git_status" },
-				{ "diagnostics" },
-			},
-			directory = {
-				{ "icon" },
-				{ "name", use_git_status_colors = true },
-				{ "git_status" },
-				{ "diagnostics" },
-			},
-		},
-	}
-
-	sources.register(token_count_source)
+--- Get the token count component function for neo-tree
+--- @return function Component function
+function M.get_component()
+	return token_count_component
 end
 
---- Clear token count cache
+--- Export the config for external access
+M.config = config
+
+--- Clear token count cache and pending requests
 function M.clear_cache()
 	cache = {}
+	pending_requests = {}
 end
 
 --- Get current configuration
