@@ -1,0 +1,121 @@
+local M = {}
+
+--- Get all valid buffers for token counting
+--- @return number[] buffer_ids Array of valid buffer IDs
+function M.get_valid_buffers()
+    local buffer = require('token-count.buffer')
+    local all_buffers = vim.api.nvim_list_bufs()
+    local valid_buffers = {}
+    
+    -- Store current buffer to restore later
+    local current_buf = vim.api.nvim_get_current_buf()
+    
+    -- Filter to valid, loaded buffers
+    for _, buf_id in ipairs(all_buffers) do
+        if vim.api.nvim_buf_is_loaded(buf_id) then
+            -- Temporarily switch to buffer to check validity
+            vim.api.nvim_set_current_buf(buf_id)
+            local _, valid = buffer.get_current_buffer_if_valid()
+            
+            if valid then
+                table.insert(valid_buffers, buf_id)
+            end
+        end
+    end
+    
+    -- Restore original buffer
+    vim.api.nvim_set_current_buf(current_buf)
+    
+    return valid_buffers
+end
+
+--- Get buffer display name
+--- @param buffer_id number Buffer ID
+--- @return string name Display name for the buffer
+function M.get_buffer_display_name(buffer_id)
+    local buf_name = vim.api.nvim_buf_get_name(buffer_id)
+    if buf_name ~= "" then
+        return vim.fn.fnamemodify(buf_name, ":t")
+    else
+        return "[No Name]"
+    end
+end
+
+--- Count tokens for multiple buffers asynchronously
+--- @param buffer_ids number[] Array of buffer IDs
+--- @param model_config table Model configuration
+--- @param callback function Callback that receives (total_tokens, buffer_results, error)
+function M.count_multiple_buffers_async(buffer_ids, model_config, callback)
+    local buffer = require('token-count.buffer')
+    local models = require('token-count.models.utils')
+    
+    if #buffer_ids == 0 then
+        callback(0, {}, nil)
+        return
+    end
+    
+    local provider = models.get_provider_handler(model_config.provider)
+    if not provider then
+        callback(nil, nil, "Failed to load provider: " .. model_config.provider)
+        return
+    end
+    
+    local total_tokens = 0
+    local completed = 0
+    local buffer_results = {}
+    local has_error = false
+    
+    -- Count tokens for each buffer
+    for _, buf_id in ipairs(buffer_ids) do
+        local content = buffer.get_buffer_contents(buf_id)
+        
+        provider.count_tokens_async(content, model_config.encoding, function(token_count, error)
+            completed = completed + 1
+            
+            if not has_error then
+                if error then
+                    has_error = true
+                    callback(nil, nil, error)
+                    return
+                end
+                
+                if token_count then
+                    total_tokens = total_tokens + token_count
+                    table.insert(buffer_results, {
+                        buffer_id = buf_id,
+                        name = M.get_buffer_display_name(buf_id),
+                        tokens = token_count
+                    })
+                end
+                
+                -- When all buffers are processed
+                if completed == #buffer_ids then
+                    callback(total_tokens, buffer_results, nil)
+                end
+            end
+        end)
+    end
+end
+
+--- Validate current buffer and get content
+--- @return string|nil content Buffer content, or nil if invalid
+--- @return string|nil error Error message if validation failed
+function M.validate_and_get_current_buffer()
+    local buffer = require('token-count.buffer')
+    
+    -- Validate current buffer
+    local buffer_id, valid = buffer.get_current_buffer_if_valid()
+    if not valid then
+        return nil, "Invalid buffer filetype"
+    end
+    
+    -- Get content
+    local content = buffer.get_buffer_contents(buffer_id)
+    if not content or content == "" then
+        return nil, "Buffer is empty"
+    end
+    
+    return content, nil
+end
+
+return M
