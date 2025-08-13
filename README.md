@@ -6,6 +6,7 @@ A Neovim plugin for counting tokens in text files using various AI model tokeniz
 
 - Token counting for OpenAI models (GPT-4, GPT-3.5, etc.) using tiktoken
 - Support for Anthropic Claude models
+- Visual selection token counting with keybinding support
 - Automatic virtual environment management
 - Integration with CodeCompanion for context analysis
 - Lualine integration for real-time token display
@@ -84,7 +85,29 @@ require("token-count").setup({
 :TokenCount       " Count tokens in current buffer
 :TokenCountModel  " Change the active model
 :TokenCountAll    " Count tokens across all open buffers
+:TokenCountSelection " Count tokens in current visual selection
 ```
+
+### Visual Selection Token Counting
+
+Select text in visual mode and use `:TokenCountSelection` to count tokens in the selection.
+
+**Keybinding Example:**
+```lua
+-- Bind to <leader>tc in visual mode
+vim.keymap.set("v", "<leader>tc", ":TokenCountSelection<CR>", {
+    desc = "Count tokens in visual selection",
+    silent = true
+})
+
+-- Or use a shorter binding
+vim.keymap.set("v", "gt", ":TokenCountSelection<CR>", {
+    desc = "Count tokens in selection",
+    silent = true
+})
+```
+
+The command works with all visual modes (`v`, `V`, `<C-v>`) and provides detailed feedback including the token count and percentage of the context window.
 
 ### Virtual Environment Management
 

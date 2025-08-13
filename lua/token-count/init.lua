@@ -26,6 +26,12 @@ function M.setup(opts)
 		desc = "Count tokens in all valid buffers",
 	})
 
+	vim.api.nvim_create_user_command("TokenCountSelection", function()
+		require("token-count.commands").count_visual_selection()
+	end, {
+		desc = "Count tokens in current visual selection",
+	})
+
 	-- Virtual environment management commands
 	vim.api.nvim_create_user_command("TokenCountVenvStatus", function()
 		local venv = require("token-count.venv")
