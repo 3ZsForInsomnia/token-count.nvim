@@ -106,13 +106,69 @@ local function is_valid_filetype(filetype)
 	return false
 end
 
+--- Check if a buffer is safe to work with (not floating, not special)
+--- @param buffer_id number Buffer ID to check
+--- @return boolean safe Whether the buffer is safe to work with
+local function is_safe_buffer(buffer_id)
+	-- Check if buffer exists and is loaded
+	if not vim.api.nvim_buf_is_valid(buffer_id) or not vim.api.nvim_buf_is_loaded(buffer_id) then
+		return false
+	end
+
+	-- Check buffer type - skip special buffers
+	local buftype = vim.api.nvim_buf_get_option(buffer_id, "buftype")
+	if buftype ~= "" then
+		return false -- Skip quickfix, help, terminal, etc.
+	end
+
+	-- Check if buffer is in a floating window
+	local win_ids = vim.fn.win_findbuf(buffer_id)
+	for _, win_id in ipairs(win_ids) do
+		if vim.api.nvim_win_is_valid(win_id) then
+			local win_config = vim.api.nvim_win_get_config(win_id)
+			if win_config.relative ~= "" then
+				return false -- Skip floating windows
+			end
+		end
+	end
+
+	-- Check for telescope and other plugin buffers by name patterns
+	local bufname = vim.api.nvim_buf_get_name(buffer_id)
+	if
+		bufname:match("telescope://")
+		or bufname:match("^%[.*%]$") -- Buffers like [Command Line], [Prompt]
+		or bufname:match("neo%-tree")
+		or bufname:match("NvimTree")
+		or bufname:match("^term://")
+	then
+		return false
+	end
+
+	return true
+end
+
+--- Check if a buffer is valid for token counting without switching to it
+--- @param buffer_id number Buffer ID to check
+--- @return boolean valid Whether the buffer is valid for token counting
+local function is_buffer_valid_for_counting(buffer_id)
+	-- First check if buffer is safe to work with
+	if not is_safe_buffer(buffer_id) then
+		return false
+	end
+
+	-- Get filetype without switching buffers
+	local filetype = vim.api.nvim_buf_get_option(buffer_id, "filetype")
+	return is_valid_filetype(filetype)
+end
+
 --- Get current active buffer and check if it's valid for token counting
 --- @return number|nil buffer_id The buffer ID if valid, nil if invalid
 --- @return boolean valid Whether the buffer is valid for token counting
 function M.get_current_buffer_if_valid()
 	local buffer_id = vim.api.nvim_get_current_buf()
-	local filetype = vim.api.nvim_buf_get_option(buffer_id, "filetype")
-	local valid = is_valid_filetype(filetype)
+
+	-- Use the safer validation function
+	local valid = is_buffer_valid_for_counting(buffer_id)
 
 	if valid then
 		return buffer_id, true

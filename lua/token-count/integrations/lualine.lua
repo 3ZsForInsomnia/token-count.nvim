@@ -202,6 +202,18 @@ end
 local function get_current_buffer_display()
 	local current_buf = vim.api.nvim_get_current_buf()
 
+	-- Don't count during UI operations that might be sensitive
+	local mode = vim.fn.mode()
+	if mode == "c" then -- Command-line mode
+		return ""
+	end
+	
+	-- Check if we're in a floating window
+	local win_config = vim.api.nvim_win_get_config(0)
+	if win_config.relative ~= "" then
+		return ""
+	end
+
 	-- Double-check buffer validity at display time
 	local buffer_ok, buffer = pcall(require, "token-count.buffer")
 	if not buffer_ok then
@@ -295,6 +307,19 @@ end
 --- Get all buffers token count and percentage (cached)
 --- @return string display_text Text to show in lualine
 local function get_all_buffers_display()
+	-- Don't count during UI operations that might be sensitive
+	local mode = vim.fn.mode()
+	if mode == "c" then -- Command-line mode
+		return cache.all_buffers.token_count and 
+		       string.format("🪙 %d (%.1f%%)", cache.all_buffers.token_count, cache.all_buffers.percentage) or ""
+	end
+	
+	-- Check if we're in a floating window
+	local win_config = vim.api.nvim_win_get_config(0)
+	if win_config.relative ~= "" then
+		return cache.all_buffers.token_count and 
+		       string.format("🪙 %d (%.1f%%)", cache.all_buffers.token_count, cache.all_buffers.percentage) or ""
+	end
 	-- Check cache validity
 	if is_cache_valid(cache.all_buffers) then
 		if cache.all_buffers.token_count then

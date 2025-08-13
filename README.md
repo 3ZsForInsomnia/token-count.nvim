@@ -159,8 +159,16 @@ pip install anthropic
 3. **Token counting fails**: Check `:checkhealth token-count` for detailed diagnostics
 4. **Log files**: Check logs at `{vim.fn.stdpath("state")}/token-count.nvim/log.txt`
 
-## To Do
+## To Do before release
 
 - [ ] Fix lualine all_buffers integration
+- [ ] Fix issue with Neo-tree on change?
+- [ ] Double check readme and healthcheck
+- [ ] Add some images of the token counter
+
+## Roadmap
+
 - [ ] Test/fix CodeCompanion integration
-- [ ] Add support for more model providers (Gemini?)
+- [ ] Add proper support for Anthropic models
+- [ ] Add support for Gemini
+- [ ] Add support for other models (DeekSeek, Ollama)
