@@ -1,12 +1,21 @@
 --- Configuration and utilities for virtual environment management
 local M = {}
 
---- Dependencies configuration
 M.DEPENDENCIES = {
 	tiktoken = {
 		package = "tiktoken",
 		import_test = "import tiktoken; print('OK')",
 		display_name = "tiktoken",
+	},
+	tokencost = {
+		package = "tokencost",
+		import_test = "import tokencost; print('OK')",
+		display_name = "tokencost",
+	},
+	deepseek_tokenizer = {
+		package = "deepseek_tokenizer",
+		import_test = "import deepseek_tokenizer; print('OK')",
+		display_name = "DeepSeek Tokenizer",
 	},
 	anthropic = {
 		package = "anthropic",

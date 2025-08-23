@@ -3,33 +3,19 @@ local M = {}
 
 local log = require("token-count.log")
 
---- Check if file should be processed for token counting
---- @param file_path string Path to the file
---- @return boolean should_process Whether file should be processed
 function M.should_process_file(file_path)
     -- Skip if file path is empty or nil
     if not file_path or file_path == "" then
         return false
     end
 
-    -- Skip if file doesn't exist
-    local stat = vim.loop.fs_stat(file_path)
-    if not stat or stat.type ~= "file" then
-        return false
-    end
-    
-    -- Skip binary files and very large files (>1MB)
-    if stat.size > 1024 * 1024 then
-        return false
-    end
-    
-    -- Skip hidden files and common non-text files
+    -- Quick filename checks before expensive file system operations
     local filename = file_path:match("([^/]+)$") or ""
     if filename:match("^%.") or filename:match("%.lock$") or filename:match("%.tmp$") then
         return false
     end
 
-    -- Check file extension
+    -- Check file extension first (fastest check)
     local ext = file_path:match("%.([^%.]+)$")
     if not ext then
         return false
@@ -54,7 +40,22 @@ function M.should_process_file(file_path)
         log = true, diff = true, patch = true,
     }
     
-    return valid_extensions[ext:lower()] == true
+    if not valid_extensions[ext:lower()] then
+        return false
+    end
+
+    -- Only do file system checks for files with valid extensions
+    local stat = vim.loop.fs_stat(file_path)
+    if not stat or stat.type ~= "file" then
+        return false
+    end
+    
+    -- Skip binary files and very large files (>1MB)
+    if stat.size > 1024 * 1024 then
+        return false
+    end
+
+    return true
 end
 
 --- Format token count for display
@@ -77,9 +78,6 @@ function M.format_token_count(count)
     return tostring(count)
 end
 
---- Process a single file for token counting
---- @param file_path string Path to the file
---- @param callback function Callback function(success, result)
 function M.process_file(file_path, callback)
     local instance = require("token-count.cache.instance").get_instance()
     
@@ -90,72 +88,74 @@ function M.process_file(file_path, callback)
     
     instance.processing[file_path] = true
     
-    -- Read file content
-    local file = io.open(file_path, "r")
-    if not file then
-        instance.processing[file_path] = nil
-        callback(false, "Cannot read file")
-        return
-    end
-    
-    local content = file:read("*a")
-    file:close()
-    
-    if not content or content == "" then
-        instance.processing[file_path] = nil
-        instance.cache[file_path] = {
-            count = 0,
-            formatted = "0",
-            timestamp = vim.loop.hrtime() / 1000000,
-            status = "ready",
-            type = "file"
-        }
-        callback(true, {count = 0, formatted = "0"})
-        return
-    end
-    
-    -- Get model and provider
-    local models_ok, models = pcall(require, "token-count.models.utils")
-    local config_module_ok, config_module = pcall(require, "token-count.config")
-    
-    if not (models_ok and config_module_ok) then
-        instance.processing[file_path] = nil
-        callback(false, "Missing dependencies")
-        return
-    end
-    
-    local current_config = config_module.get()
-    local model_config = models.get_model(current_config.model)
-    if not model_config then
-        instance.processing[file_path] = nil
-        callback(false, "Invalid model config")
-        return
-    end
-    
-    local provider = models.get_provider_handler(model_config.provider)
-    if not provider then
-        instance.processing[file_path] = nil
-        callback(false, "Invalid provider")
-        return
-    end
-    
-    -- Count tokens asynchronously
-    provider.count_tokens_async(content, model_config.encoding, function(count, error)
-        instance.processing[file_path] = nil
+    -- Read file content asynchronously to prevent blocking
+    vim.schedule(function()
+        local file = io.open(file_path, "r")
+        if not file then
+            instance.processing[file_path] = nil
+            callback(false, "Cannot read file")
+            return
+        end
         
-        if count then
-            local formatted = M.format_token_count(count)
+        local content = file:read("*a")
+        file:close()
+        
+        if not content or content == "" then
+            instance.processing[file_path] = nil
             instance.cache[file_path] = {
-                count = count,
-                formatted = formatted,
+                count = 0,
+                formatted = "0",
                 timestamp = vim.loop.hrtime() / 1000000,
                 status = "ready",
                 type = "file"
             }
-            callback(true, {count = count, formatted = formatted})
-        else
-            callback(false, error or "Unknown error")
+            callback(true, {count = 0, formatted = "0"})
+            return
         end
+        
+        -- Get model and provider
+        local models_ok, models = pcall(require, "token-count.models.utils")
+        local config_module_ok, config_module = pcall(require, "token-count.config")
+        
+        if not (models_ok and config_module_ok) then
+            instance.processing[file_path] = nil
+            callback(false, "Missing dependencies")
+            return
+        end
+        
+        local current_config = config_module.get()
+        local model_config = models.get_model(current_config.model)
+        if not model_config then
+            instance.processing[file_path] = nil
+            callback(false, "Invalid model config")
+            return
+        end
+        
+        local provider = models.get_provider_handler(model_config.provider)
+        if not provider then
+            instance.processing[file_path] = nil
+            callback(false, "Invalid provider")
+            return
+        end
+        
+        -- Count tokens asynchronously
+        provider.count_tokens_async(content, model_config.encoding, function(count, error)
+            instance.processing[file_path] = nil
+            
+            if count then
+                local formatted = M.format_token_count(count)
+                instance.cache[file_path] = {
+                    count = count,
+                    formatted = formatted,
+                    timestamp = vim.loop.hrtime() / 1000000,
+                    status = "ready",
+                    type = "file"
+                }
+                callback(true, {count = count, formatted = formatted})
+            else
+                callback(false, error or "Unknown error")
+            end
+        end)
     end)
 end
 

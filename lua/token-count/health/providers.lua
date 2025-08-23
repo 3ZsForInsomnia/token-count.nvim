@@ -43,6 +43,22 @@ end
 
 --- Run provider library checks
 function M.run_provider_checks()
+	-- Check tokencost library (primary)
+	local tokencost_ok, tokencost_err = utils.check_python_library("tokencost")
+	if tokencost_ok then
+		utils.report_check("tokencost library", true, nil, "Primary token counting library available")
+	else
+		vim.health.warn("tokencost library", tokencost_err .. " (will be installed automatically)")
+	end
+
+	-- Check deepseek_tokenizer library
+	local deepseek_ok, deepseek_err = utils.check_python_library("deepseek_tokenizer")
+	if deepseek_ok then
+		utils.report_check("deepseek_tokenizer library", true, nil, "Available for DeepSeek models")
+	else
+		vim.health.warn("deepseek_tokenizer library", deepseek_err .. " (will be installed automatically)")
+	end
+
 	-- Check anthropic library (optional)
 	local anthropic_ok, anthropic_err = utils.check_python_library("anthropic")
 	if anthropic_ok then
@@ -76,7 +92,9 @@ function M.run_provider_checks()
 
 	-- Check provider availability
 	local providers = {
-		{ name = "tiktoken", module = "token-count.providers.tiktoken", required = true },
+		{ name = "tokencost", module = "token-count.providers.tokencost", required = true },
+		{ name = "deepseek", module = "token-count.providers.deepseek", required = false },
+		{ name = "tiktoken", module = "token-count.providers.tiktoken", required = false },
 		{ name = "anthropic", module = "token-count.providers.anthropic", required = false },
 		{ name = "gemini", module = "token-count.providers.gemini", required = false },
 	}

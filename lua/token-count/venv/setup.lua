@@ -5,15 +5,16 @@ local utils = require("token-count.venv.utils")
 local manager = require("token-count.venv.manager")
 local dependencies = require("token-count.venv.dependencies")
 
---- Setup virtual environment (create if needed, install tiktoken for basic functionality)
---- @param callback function Callback function that receives (success, error)
 function M.setup_venv(callback)
 	callback = callback or function() end
 
-	-- Check if already set up
-	local installed, error = dependencies.is_dependency_installed("tiktoken")
-	if installed then
-		require("token-count.log").info("Virtual environment already set up with tiktoken")
+	-- Check if already set up with primary dependencies
+	local tokencost_installed = dependencies.is_dependency_installed("tokencost")
+	local tiktoken_installed = dependencies.is_dependency_installed("tiktoken")
+	local deepseek_installed = dependencies.is_dependency_installed("deepseek_tokenizer")
+	
+	if tokencost_installed and tiktoken_installed and deepseek_installed then
+		require("token-count.log").info("Virtual environment already set up with core dependencies")
 		callback(true, nil)
 		return
 	end
@@ -26,21 +27,21 @@ function M.setup_venv(callback)
 				return
 			end
 
-			-- Install tiktoken after venv creation
-			dependencies.install_dependency("tiktoken", callback)
+			-- Install all dependencies after venv creation
+			dependencies.install_all_dependencies(callback)
 		end)
 	else
-		-- Venv exists but tiktoken not installed
-		dependencies.install_dependency("tiktoken", callback)
+		-- Venv exists but dependencies need installation
+		dependencies.install_all_dependencies(callback)
 	end
 end
 
---- Get comprehensive status information about the venv setup
---- @return table status Status information
 function M.get_status()
 	local python_available, python_info = utils.check_python_available()
 	local venv_exists = utils.venv_exists()
 	local tiktoken_installed, tiktoken_error = dependencies.is_dependency_installed("tiktoken")
+	local tokencost_installed, tokencost_error = dependencies.is_dependency_installed("tokencost")
+	local deepseek_installed, deepseek_error = dependencies.is_dependency_installed("deepseek_tokenizer")
 	local anthropic_installed, anthropic_error = dependencies.is_dependency_installed("anthropic")
 	local gemini_installed, gemini_error = dependencies.is_dependency_installed("gemini")
 	local api_keys = utils.check_api_keys()
@@ -55,6 +56,10 @@ function M.get_status()
 		-- Dependencies
 		tiktoken_installed = tiktoken_installed,
 		tiktoken_error = tiktoken_error,
+		tokencost_installed = tokencost_installed,
+		tokencost_error = tokencost_error,
+		deepseek_installed = deepseek_installed,
+		deepseek_error = deepseek_error,
 		anthropic_installed = anthropic_installed,
 		anthropic_error = anthropic_error,
 		gemini_installed = gemini_installed,
@@ -65,7 +70,7 @@ function M.get_status()
 		gemini_api_key = api_keys.gemini,
 
 		-- Overall readiness
-		ready = python_available and venv_exists and tiktoken_installed,
+		ready = python_available and venv_exists and tokencost_installed,
 	}
 end
 

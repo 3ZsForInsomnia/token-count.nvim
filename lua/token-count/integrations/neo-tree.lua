@@ -72,27 +72,46 @@ function M.setup(user_config)
 	
 	-- Set up neotree event handlers for dynamic directory scanning
 	local events = require("neo-tree.events")
+	
+	-- Throttle directory scanning to prevent UI blocking
+	local last_scan_time = {}
+	local SCAN_THROTTLE_MS = 2000 -- 2 seconds
+	
+	local function should_scan_directory(dir_path)
+		local now = vim.loop.hrtime() / 1000000
+		local last_scan = last_scan_time[dir_path] or 0
+		if (now - last_scan) < SCAN_THROTTLE_MS then
+			return false
+		end
+		last_scan_time[dir_path] = now
+		return true
+	end
+	
 	events.subscribe({
 		event = "neo_tree_buffer_enter",
 		handler = function(state)
-			-- Queue files for any visible directories
-			if state.tree and state.tree:get_nodes() then
-				for _, node in ipairs(state.tree:get_nodes()) do
-					if node.type == "directory" and node:is_expanded() then
-						cache_manager.queue_directory_files(node:get_id(), false)
+			-- Throttled directory scanning with delay
+			vim.defer_fn(function()
+				if state.tree and state.tree:get_nodes() then
+					for _, node in ipairs(state.tree:get_nodes()) do
+						if node.type == "directory" and node:is_expanded() and should_scan_directory(node:get_id()) then
+							cache_manager.queue_directory_files(node:get_id(), false)
+						end
 					end
 				end
-			end
+			end, 500) -- 500ms delay
 		end,
 	})
 	
 	events.subscribe({
 		event = "neo_tree_popup_buffer_enter", 
 		handler = function(state)
-			-- Queue current directory files when neotree opens
-			if state.path then
-				cache_manager.queue_directory_files(state.path, false)
-			end
+			-- Throttled directory scanning when neotree opens
+			vim.defer_fn(function()
+				if state.path and should_scan_directory(state.path) then
+					cache_manager.queue_directory_files(state.path, false)
+				end
+			end, 1000) -- 1 second delay
 		end,
 	})
 end

@@ -5,6 +5,7 @@ function M.count_current_buffer()
 	local ui = require("token-count.utils.ui")
 	local formatting = require("token-count.utils.formatting")
 	local buffer = require("token-count.buffer")
+	local cache_manager = require("token-count.cache")
 
 	buffer.count_current_buffer_async(function(result, error)
 		if error then
@@ -13,6 +14,12 @@ function M.count_current_buffer()
 			ui.notify_token_count_result(result)
 
 			require("token-count.log").info("Token count result: " .. formatting.format_result_json(result))
+			
+			-- Update cache with the new token count
+			local current_file = vim.api.nvim_buf_get_name(result.buffer_id)
+			if current_file and current_file ~= "" then
+				cache_manager.update_cache_with_count(current_file, result.token_count)
+			end
 		end
 	end)
 end

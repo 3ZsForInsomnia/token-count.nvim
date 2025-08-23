@@ -4,7 +4,6 @@ local M = {}
 local log = require("token-count.log")
 local processor = require("token-count.cache.processor")
 
---- Process files from the queue
 function M.process_queue_batch()
     local instance = require("token-count.cache.instance").get_instance()
     
@@ -15,28 +14,35 @@ function M.process_queue_batch()
     end
     instance.last_batch_time = now
     
-    local batch_size = math.min(instance.config.max_files_per_batch, #instance.process_queue)
+    -- Reduce batch size to prevent blocking
+    local max_batch = math.min(instance.config.max_files_per_batch or 5, 3) -- Never more than 3 files at once
+    local batch_size = math.min(max_batch, #instance.process_queue)
     if batch_size == 0 then
         return
     end
     
     log.info(string.format("Processing batch of %d files", batch_size))
     
+    -- Process files with small delays between each to prevent blocking
+    local processed_count = 0
     for i = 1, batch_size do
-        local file_path = table.remove(instance.process_queue, 1)
-        if file_path then
-            processor.process_file(file_path, function(success, result)
-                if success then
-                    log.info(string.format("Cached tokens for %s: %s", file_path, result.formatted))
-                    
-                    -- Notify UI components of update
-                    local notifications = require("token-count.cache.notifications")
-                    notifications.notify_cache_updated(file_path, "file")
-                else
-                    log.warn(string.format("Failed to process %s: %s", file_path, result or "unknown error"))
-                end
-            end)
-        end
+        vim.defer_fn(function()
+            local file_path = table.remove(instance.process_queue, 1)
+            if file_path then
+                processor.process_file(file_path, function(success, result)
+                    processed_count = processed_count + 1
+                    if success then
+                        log.info(string.format("Cached tokens for %s: %s", file_path, result.formatted))
+                        
+                        -- Notify UI components of update
+                        local notifications = require("token-count.cache.notifications")
+                        notifications.notify_cache_updated(file_path, "file")
+                    else
+                        log.warn(string.format("Failed to process %s: %s", file_path, result or "unknown error"))
+                    end
+                end)
+            end
+        end, i * 50) -- 50ms delay between each file
     end
 end
 

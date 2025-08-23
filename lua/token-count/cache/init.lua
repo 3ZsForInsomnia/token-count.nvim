@@ -2,7 +2,6 @@
 --- Orchestrates all cache modules and provides the public API
 local M = {}
 
--- Import all modules
 local setup = require("token-count.cache.setup")
 local api = require("token-count.cache.api")
 local management = require("token-count.cache.management")
@@ -23,6 +22,7 @@ M.get_file_token_count = api.get_file_token_count
 M.get_directory_token_count = api.get_directory_token_count
 M.process_immediate = api.process_immediate
 M.invalidate_file = api.invalidate_file
+M.update_cache_with_count = api.update_cache_with_count
 
 -- Export functions from management module
 M.queue_directory_files = management.queue_directory_files

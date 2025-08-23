@@ -211,4 +211,32 @@ function M._queue_invalidated_file(inst, file_path)
     end
 end
 
+--- Update cache with known token count (for commands that already have the result)
+--- @param file_path string Path to the file
+--- @param token_count number Token count to cache
+--- @param notify boolean|nil Whether to notify UI components (default: true)
+function M.update_cache_with_count(file_path, token_count, notify)
+    local inst = instance_manager.get_instance()
+    
+    if not file_path or file_path == "" or not token_count then
+        return
+    end
+    
+    local formatted = processor.format_token_count(token_count)
+    inst.cache[file_path] = {
+        count = token_count,
+        formatted = formatted,
+        timestamp = vim.loop.hrtime() / 1000000,
+        status = "ready",
+        type = "file"
+    }
+    
+    -- Notify UI components of cache update
+    if notify ~= false then
+        notifications.notify_cache_updated(file_path, "file")
+    end
+    
+    require("token-count.log").info(string.format("Updated cache for %s: %s tokens", file_path, formatted))
+end
+
 return M

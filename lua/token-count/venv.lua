@@ -17,12 +17,15 @@ M.check_python_available = utils.check_python_available
 M.create_venv = manager.create_venv
 M.clean_venv = manager.clean_venv
 
--- Re-export dependency functions
 M.tiktoken_installed = function() return dependencies.is_dependency_installed("tiktoken") end
+M.tokencost_installed = function() return dependencies.is_dependency_installed("tokencost") end
+M.deepseek_tokenizer_installed = function() return dependencies.is_dependency_installed("deepseek_tokenizer") end
 M.anthropic_installed = function() return dependencies.is_dependency_installed("anthropic") end
 M.gemini_installed = function() return dependencies.is_dependency_installed("gemini") end
 
 M.install_tiktoken = function(callback) dependencies.install_dependency("tiktoken", callback) end
+M.install_tokencost = function(callback) dependencies.install_dependency("tokencost", callback) end
+M.install_deepseek_tokenizer = function(callback) dependencies.install_dependency("deepseek_tokenizer", callback) end
 M.install_anthropic = function(callback) dependencies.install_dependency("anthropic", callback) end
 M.install_gemini = function(callback) dependencies.install_dependency("gemini", callback) end
 

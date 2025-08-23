@@ -1,9 +1,11 @@
 local M = {}
 
 M.defaults = {
-	model = "generic",
+	model = "gpt-4",
 	log_level = "warn", -- "info", "warn", "error"
 	context_warning_threshold = 0.4, -- Warn when buffers use >40% of context window
+	enable_official_anthropic_counter = false, -- Use official Anthropic API for token counting
+	enable_official_gemini_counter = false, -- Use official Gemini API for token counting
 	cache = {
 		enabled = true,
 		interval = 30000, -- 30 seconds
@@ -24,6 +26,18 @@ function M.setup(user_config)
 	if not valid_levels[config.log_level] then
 		vim.notify("Invalid log_level '" .. tostring(config.log_level) .. "'. Using 'warn'.", vim.log.levels.WARN)
 		config.log_level = "warn"
+	end
+
+	-- Resolve model name to technical name if needed
+	if config.model then
+		local models = require("token-count.models.utils")
+		local technical_name = models.resolve_model_name(config.model)
+		if technical_name then
+			config.model = technical_name
+		else
+			vim.notify("Invalid model '" .. tostring(config.model) .. "'. Using 'generic'.", vim.log.levels.WARN)
+			config.model = "generic"
+		end
 	end
 
 	M.current = config

@@ -23,8 +23,9 @@ function M.check()
 	vim.health.info("Run ':TokenCountVenvStatus' for detailed provider and dependency status")
 	vim.health.info("")
 	vim.health.info("To enable additional providers:")
-	vim.health.info("  - Anthropic: Set ANTHROPIC_API_KEY environment variable")
-	vim.health.info("  - Google GenAI: Set GOOGLE_API_KEY environment variable")
+	vim.health.info("  - Anthropic accurate counting: Set ANTHROPIC_API_KEY and enable_official_anthropic_counter = true")
+	vim.health.info("  - Gemini accurate counting: Set GOOGLE_API_KEY and enable_official_gemini_counter = true")
+	vim.health.info("  - Note: All models provide token estimates by default via tokencost")
 end
 
 return M

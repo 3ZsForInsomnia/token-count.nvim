@@ -94,7 +94,9 @@ function M.create_venv_commands()
 			"  Python executable: " .. status.python_path,
 			"",
 			"Provider Dependencies:",
-			"  " .. provider_status(status.tiktoken_installed, true, status.tiktoken_error, "tiktoken (required)"),
+			"  " .. provider_status(status.tokencost_installed, true, status.tokencost_error, "tokencost (primary)"),
+			"  " .. provider_status(status.tiktoken_installed, true, status.tiktoken_error, "tiktoken (OpenAI)"),
+			"  " .. provider_status(status.deepseek_installed, true, status.deepseek_error, "deepseek_tokenizer (DeepSeek)"),
 			"  " .. provider_status(status.anthropic_installed, status.anthropic_api_key, status.anthropic_error, "Anthropic"),
 			"  " .. provider_status(status.gemini_installed, status.gemini_api_key, status.gemini_error, "Google GenAI"),
 			"",
@@ -102,13 +104,22 @@ function M.create_venv_commands()
 		}
 
 		-- Add helpful notes
+		local config = require("token-count.config").get()
+		if config.enable_official_anthropic_counter and not status.anthropic_api_key then
+			table.insert(lines, "")
+			table.insert(lines, "Note: Official Anthropic counting enabled but ANTHROPIC_API_KEY not set")
+		end
+		if config.enable_official_gemini_counter and not status.gemini_api_key then
+			table.insert(lines, "")
+			table.insert(lines, "Note: Official Gemini counting enabled but GOOGLE_API_KEY not set")
+		end
 		if not status.anthropic_api_key then
 			table.insert(lines, "")
-			table.insert(lines, "Note: Set ANTHROPIC_API_KEY environment variable to use Anthropic models")
+			table.insert(lines, "Note: Set ANTHROPIC_API_KEY to enable official Anthropic token counting")
 		end
 		if not status.gemini_api_key then
 			table.insert(lines, "")
-			table.insert(lines, "Note: Set GOOGLE_API_KEY environment variable to use Google GenAI models")
+			table.insert(lines, "Note: Set GOOGLE_API_KEY to enable official Gemini token counting")
 		end
 
 		for _, line in ipairs(lines) do

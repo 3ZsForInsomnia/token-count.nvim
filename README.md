@@ -4,17 +4,12 @@ A Neovim plugin for counting tokens in text files using various AI model tokeniz
 
 ## Features
 
-- Token counting for OpenAI models (GPT-4, GPT-3.5, etc.) using tiktoken
-- Support for Anthropic Claude models
-- **Background caching** - Async token counting with configurable intervals
-- **File & directory support** - Count tokens for individual files or entire directories
-- **Unified cache** - Single cache shared across all integrations (neotree, lualine)
-- Visual selection token counting with keybinding support
-- Automatic virtual environment management
-- Integration with CodeCompanion for context analysis
-- Lualine integration for real-time token display
-- Neo-tree integration for file token counts
-- Health checks to verify setup
+- **Multi-provider token counting** with 60+ supported models
+- **High accuracy** for OpenAI (tiktoken) and DeepSeek (official tokenizer) models
+- **Background caching** for optimal performance with file/directory explorers
+- **Multiple interfaces** - Commands, visual selection, Telescope integration
+- **Auto-managed dependencies** - Python virtual environment handled automatically
+- **Integrations** - Lualine, Neo-tree, CodeCompanion support
 
 ## Installation
 
@@ -29,13 +24,13 @@ A Neovim plugin for counting tokens in text files using various AI model tokeniz
 {
   "zacharylevinw/token-count.nvim",
   dependencies = {
-    -- Optional: for CodeCompanion integration
-    "olimorris/codecompanion.nvim",
+    "nvim-telescope/telescope.nvim", -- Optional: for enhanced model selection
+    "olimorris/codecompanion.nvim",  -- Optional: for CodeCompanion integration
   },
   config = function()
     require("token-count").setup({
-      model = "openai/gpt-4", -- Default model
-      log_level = "warn",     -- "info", "warn", "error"
+      model = "gpt-4",      -- Default model for counting
+      log_level = "warn",   -- "info", "warn", "error"
     })
   end,
 }
@@ -43,55 +38,18 @@ A Neovim plugin for counting tokens in text files using various AI model tokeniz
 
 ### First-time Setup
 
-The plugin will automatically create a virtual environment and install tiktoken when first used. You can also manually trigger setup:
+The plugin automatically creates a virtual environment and installs required Python libraries when first used:
 
 ```vim
-:TokenCountVenvSetup
+:TokenCount  " Triggers automatic setup on first use
 ```
 
-Check the virtual environment status:
-
+Check setup status:
 ```vim
-:TokenCountVenvStatus
 :checkhealth token-count
 ```
 
-## Configuration
-
-```lua
-require("token-count").setup({
-  model = "openai/gpt-4",           -- Default model for counting
-  log_level = "warn",               -- Logging verbosity
-  context_warning_threshold = 0.4,  -- Warn at 40% context usage
-  cache = {
-    enabled = true,                 -- Enable background caching
-    interval = 30000,               -- Background processing interval (30s)
-    max_files_per_batch = 10,       -- Process max files per cycle
-    cache_ttl = 300000,             -- File cache TTL (5 minutes)
-    directory_cache_ttl = 600000,   -- Directory cache TTL (10 minutes)
-    placeholder_text = "⋯",         -- Placeholder while processing
-    enable_directory_caching = true, -- Enable directory token counts
-    enable_file_caching = true,     -- Enable file token counts
-    request_debounce = 100,         -- Debounce immediate requests (100ms)
-  },
-})
-```
-
-### Supported Models
-
-- `openai/gpt-4` - GPT-4 (8K context)
-- `openai/gpt-4-32k` - GPT-4 32K
-- `openai/gpt-4-turbo` - GPT-4 Turbo (128K)
-- `openai/gpt-4o` - GPT-4o (128K)
-- `openai/gpt-4o-mini` - GPT-4o Mini (128K)
-- `openai/gpt-3.5-turbo` - GPT-3.5 Turbo (16K)
-- `anthropic/claude-3-haiku` - Claude 3 Haiku (200K)
-- `anthropic/claude-3-sonnet` - Claude 3 Sonnet (200K)
-- `anthropic/claude-3-opus` - Claude 3 Opus (200K)
-- `anthropic/claude-3.5-sonnet` - Claude 3.5 Sonnet (200K)
-- `generic` - Generic GPT-4 compatible (default)
-
-## Usage
+## Quick Start
 
 ### Basic Commands
 
@@ -99,118 +57,72 @@ require("token-count").setup({
 :TokenCount       " Count tokens in current buffer
 :TokenCountModel  " Change the active model
 :TokenCountAll    " Count tokens across all open buffers
-:TokenCountSelection " Count tokens in current visual selection
-
-# Cache Management
-:TokenCountCacheStats   " Show cache statistics
-:TokenCountCacheClear   " Clear all cached data  
-:TokenCountCacheRefresh " Clear cache and re-queue current directory
+:TokenCountSelection " Count tokens in visual selection (in visual mode)
 ```
 
-### Visual Selection Token Counting
+### Configuration
 
-Select text in visual mode and use `:TokenCountSelection` to count tokens in the selection.
-
-**Keybinding Example:**
 ```lua
--- Bind to <leader>tc in visual mode
-vim.keymap.set("v", "<leader>tc", ":TokenCountSelection<CR>", {
-    desc = "Count tokens in visual selection",
-    silent = true
-})
-
--- Or use a shorter binding
-vim.keymap.set("v", "gt", ":TokenCountSelection<CR>", {
-    desc = "Count tokens in selection",
-    silent = true
+require("token-count").setup({
+  model = "gpt-4",                  -- Default model (see MODELS.md for all options)
+  log_level = "warn",               -- Logging verbosity
+  context_warning_threshold = 0.4,  -- Warn at 40% context usage
+  
+  -- Optional: Enable official API token counting (requires API keys)
+  enable_official_anthropic_counter = false, -- Requires ANTHROPIC_API_KEY
+  enable_official_gemini_counter = false,    -- Requires GOOGLE_API_KEY
 })
 ```
 
-The command works with all visual modes (`v`, `V`, `<C-v>`) and provides detailed feedback including the token count and percentage of the context window.
+## Supported Models
 
-### Cache System
+📋 **[View Complete Models List →](MODELS.md)**
 
-The plugin features a unified background cache that processes files asynchronously. This eliminates UI blocking when opening directories in neotree or displaying token counts in lualine.
+The plugin supports 60+ models including GPT-4/5, Claude, Gemini, Llama, Grok, and more. Token counting accuracy varies by provider:
 
-**Key Benefits:**
-- **No UI blocking** - File explorers open instantly with placeholders
-- **Shared cache** - Single cache used by all integrations 
-- **Directory support** - Token counts for entire directories
-- **Background processing** - Configurable async intervals
-- **Smart invalidation** - Active buffers update immediately when changed
-- **Dynamic discovery** - Folders scanned when expanded in neotree
-
-**Cache API:**
-```lua
-local cache_manager = require("token-count.cache")
-
--- Get token counts (returns immediately with placeholder or cached value)
-local file_tokens = cache_manager.get_file_token_count("/path/to/file.lua")
-local dir_tokens = cache_manager.get_directory_token_count("/path/to/directory")
-
--- Unified API (auto-detects file vs directory)
-local tokens = cache_manager.get_token_count("/path/to/item")
-
--- Force immediate processing (async)
-cache_manager.process_immediate("/path/to/file.lua", function(result)
-  if result then
-    print("Tokens:", result.count, "Formatted:", result.formatted)
-  end
-end)
-
-cache_manager.register_update_callback(function(path, path_type)
-  print("Cache updated:", path_type, path)
-end)
-
-cache_manager.clear_cache()
-cache_manager.get_stats()
-cache_manager.queue_directory_files("/path", recursive)
-
--- Manual invalidation (for integrations)
-cache_manager.invalidate_file("/path/to/file.lua", true) -- invalidate and reprocess
-```
-
-### Virtual Environment Management
-
-```vim
-:TokenCountVenvStatus  " Show venv status
-:TokenCountVenvSetup   " Set up or repair venv
-:TokenCountVenvClean   " Remove venv (with confirmation)
-```
-
-### Health Check
-
-```vim
-:checkhealth token-count
-```
+- **Exact counts**: OpenAI (tiktoken), DeepSeek (official tokenizer)
+- **Official API**: Anthropic, Google (with API keys)
+- **Estimates**: All other models via tokencost
 
 ## Integrations
 
-### CodeCompanion
+### Telescope (Enhanced Model Selection)
 
-When CodeCompanion is available, the plugin automatically adds token counting for chat context:
+If Telescope is installed, you get an enhanced model picker with fuzzy search and preview:
 
-- Press `gt` in a CodeCompanion chat to see context token counts
-- Use `:TokenCountCodeCompanion` command
+```vim
+:TokenCountModel  " Opens Telescope picker automatically
+```
 
-### Lualine
+Or use directly:
+```vim
+:Telescope token_count models
+```
 
-Shows token counts for current buffer and all buffers with percentage of context window. Automatically uses the unified cache for optimal performance.
+The picker shows:
+- Fuzzy search across all model name types
+- Preview with detailed model information
+- Input/output token limits
+- Accuracy information
+
+### Lualine (Status Line)
 
 ```lua
 require('lualine').setup({
   sections = {
-    lualine_c = { require('token-count.integrations.lualine').current_buffer }
+    lualine_c = { 
+      require('token-count.integrations.lualine').current_buffer 
+    }
   },
   winbar = {
-    lualine_c = { require('token-count.integrations.lualine').all_buffers }
+    lualine_c = { 
+      require('token-count.integrations.lualine').all_buffers 
+    }
   }
 })
 ```
 
-### Neo-tree
-
-Displays token counts next to files and directories in the file explorer. Shows placeholders initially, then updates with actual counts as background processing completes. Automatically scans folders when expanded.
+### Neo-tree (File Explorer)
 
 ```lua
 require("token-count.integrations.neo-tree").setup({
@@ -222,28 +134,108 @@ require("token-count.integrations.neo-tree").setup({
 })
 ```
 
-## Virtual Environment
+Shows token counts next to files and directories with background processing.
 
-The plugin creates and manages its own Python virtual environment at:
+### CodeCompanion
 
+When CodeCompanion is available, token counting is automatically integrated:
+
+- Press `gt` in a CodeCompanion chat to see context token counts
+- Use `:TokenCountCodeCompanion` command
+
+## Visual Selection Token Counting
+
+Select text in visual mode and use `:TokenCountSelection`:
+
+```lua
+-- Recommended keybinding
+vim.keymap.set("v", "<leader>tc", ":TokenCountSelection<CR>", {
+    desc = "Count tokens in visual selection",
+    silent = true
+})
 ```
-{vim.fn.stdpath("data")}/token-count.nvim/venv/
+
+## API Usage
+
+### Basic API
+
+```lua
+-- Get current buffer token count (async)
+require("token-count").get_current_buffer_count(function(result, error)
+  if result then
+    print("Tokens:", result.token_count)
+    print("Model:", result.model_config.name)
+  end
+end)
+
+-- Get available models
+local models = require("token-count").get_available_models()
+
+-- Get current model info
+local model_config = require("token-count").get_current_model()
 ```
 
-This ensures tiktoken is always available without requiring user Python environment setup. The virtual environment is created automatically on first use and can be managed via the provided commands.
+### Cache API
+
+```lua
+local cache = require("token-count.cache")
+
+-- Get token counts for files/directories
+local file_tokens = cache.get_file_token_count("/path/to/file.lua")
+local dir_tokens = cache.get_directory_token_count("/path/to/directory")
+
+-- Cache management
+cache.clear_cache()
+local stats = cache.get_stats()
+```
+
+## Documentation
+
+- 📋 **[MODELS.md](MODELS.md)** - Complete list of supported models with accuracy details
+- 🔧 **[ADVANCED.md](ADVANCED.md)** - Advanced usage, virtual environment management, and detailed API
+
+## Health Check
+
+```vim
+:checkhealth token-count
+```
+
+Provides comprehensive status of:
+- Python and virtual environment
+- Dependency installation
+- API key configuration
+- Provider availability
+
+## Cache System
+
+The plugin features a unified background cache that:
+- Processes files asynchronously without blocking UI
+- Shares cached results across all integrations
+- Handles both individual files and entire directories
+- Updates automatically when files change
+
+Cache is enabled by default with sensible settings. See [ADVANCED.md](ADVANCED.md) for detailed configuration.
 
 ## Troubleshooting
 
-1. **"Python 3 not found"**: Ensure Python 3.7+ is installed and available as `python3`
-2. **Virtual environment issues**: Run `:TokenCountVenvClean` then `:TokenCountVenvSetup`
-3. **Token counting fails**: Check `:checkhealth token-count` for detailed diagnostics
-4. **Log files**: Check logs at `{vim.fn.stdpath("state")}/token-count.nvim/log.txt`
+### Virtual Environment Issues
+```vim
+:TokenCountVenvStatus  " Check detailed status
+:TokenCountVenvSetup   " Recreate if needed
+```
 
-## Roadmap
+### Dependencies Not Installing
+Ensure Python 3.7+ is available:
+```bash
+python3 --version
+```
 
-- [x] Add proper support for Anthropic models
-- [x] Add support for Gemini
-- [ ] Add documentation about token counters vs estimators, API keys
-- [ ] Add support to default to token estimators when API key is not present for Gemini/Anthropic
-- [ ] Test/fix CodeCompanion integration
-- [ ] Add support for other models (DeekSeek, Ollama)
+### Model Not Found
+Check available models:
+```vim
+:TokenCountModel  " Browse and select models
+```
+
+## License
+
+MIT License - see LICENSE file for details.

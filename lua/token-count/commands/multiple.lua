@@ -39,6 +39,7 @@ function M.count_all_buffers()
 	local buffer_ops = require("token-count.utils.buffer_ops")
 	local config = require("token-count.config").get()
 	local models = require("token-count.models.utils")
+	local cache_manager = require("token-count.cache")
 
 	local valid_buffers = buffer_ops.get_valid_buffers()
 
@@ -58,6 +59,25 @@ function M.count_all_buffers()
 			vim.notify("Token counting failed: " .. error, vim.log.levels.ERROR)
 		else
 			handle_all_buffers_completion(total_tokens, buffer_results, model_config)
+			
+			-- Update cache for all processed buffers
+			local updated_files = 0
+			
+			for _, result in ipairs(buffer_results) do
+				local buffer_name = vim.api.nvim_buf_get_name(result.buffer_id)
+				if buffer_name and buffer_name ~= "" then
+					cache_manager.update_cache_with_count(buffer_name, result.token_count, false) -- Don't notify for each file
+					updated_files = updated_files + 1
+				end
+			end
+			
+			if updated_files > 0 then
+				require("token-count.log").info("Updated cache for " .. updated_files .. " buffers")
+				-- Send a single notification for all updates
+				vim.schedule(function()
+					vim.cmd("redraw") -- Refresh UI components like neo-tree
+				end)
+			end
 		end
 	end)
 end

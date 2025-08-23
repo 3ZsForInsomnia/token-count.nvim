@@ -13,7 +13,7 @@ def main():
     if len(sys.argv) != 3:
         print("Usage: tiktoken_counter.py <encoding_name> <text>", file=sys.stderr)
         print(
-            "Available encodings: cl100k_base, p50k_base, p50k_edit, r50k_base",
+            "Available encodings: o200k_base, cl100k_base, p50k_base, p50k_edit, r50k_base, gpt2",
             file=sys.stderr,
         )
         sys.exit(1)
