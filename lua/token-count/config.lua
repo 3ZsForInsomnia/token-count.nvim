@@ -4,9 +4,15 @@ M.defaults = {
 	model = "generic",
 	log_level = "warn", -- "info", "warn", "error"
 	context_warning_threshold = 0.4, -- Warn when buffers use >40% of context window
+	cache = {
+		enabled = true,
+		interval = 30000, -- 30 seconds
+		max_files_per_batch = 10,
+		cache_ttl = 300000, -- 5 minutes
+		placeholder_text = "⋯",
+	},
 }
 
---- Merge user configuration with defaults
 --- @param user_config table|nil User provided configuration
 --- @return table config Merged configuration
 function M.setup(user_config)

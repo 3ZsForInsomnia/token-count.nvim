@@ -11,43 +11,25 @@
 
 local M = {}
 
--- Simplified cache structure - no visual selection caching
-local cache = {
-	current_buffer = {
-		buffer_id = nil,
-		token_count = nil,
-		timestamp = 0,
-		cache_duration = 10000, -- 10 seconds
-	},
-	all_buffers = {
-		token_count = nil,
-		percentage = nil,
-		timestamp = 0,
-		cache_duration = 60000, -- 60 seconds
-	},
-}
+-- Import the unified cache manager
+local cache_manager = require("token-count.cache")
 
---- Check if cache is valid
---- @param cache_entry table Cache entry to check
---- @return boolean valid Whether cache is still valid
-local function is_cache_valid(cache_entry)
-	local now = vim.loop.hrtime() / 1000000 -- Convert to milliseconds
-	return (now - cache_entry.timestamp) < cache_entry.cache_duration
-end
+-- Auto-initialization flag
+local initialized = false
 
---- Update cache entry
---- @param cache_entry table Cache entry to update
---- @param data table Data to store in cache
-local function update_cache(cache_entry, data)
-	cache_entry.timestamp = vim.loop.hrtime() / 1000000
-	for key, value in pairs(data) do
-		cache_entry[key] = value
+--- Lazy initialization
+local function ensure_initialized()
+	if not initialized then
+		M.init()
+		initialized = true
 	end
 end
 
 --- Get current buffer token count display
 --- @return string display_text Text to show in lualine
 local function get_current_buffer_display()
+	ensure_initialized()
+	
 	local current_buf = vim.api.nvim_get_current_buf()
 
 	-- Don't count during UI operations that might be sensitive
@@ -73,119 +55,74 @@ local function get_current_buffer_display()
 		return ""
 	end
 
-	-- Check cache validity
-	local has_cached_data = cache.current_buffer.buffer_id == current_buf
-	local cache_is_valid = has_cached_data and is_cache_valid(cache.current_buffer)
-
-	if cache_is_valid then
-		if cache.current_buffer.token_count then
-			return "🪙 " .. cache.current_buffer.token_count
-		else
-			return ""
-		end
+	-- Get current buffer file path and request token count
+	local buffer_path = vim.api.nvim_buf_get_name(current_buf)
+	if not buffer_path or buffer_path == "" then
+		return ""
 	end
-
-	-- Cache is invalid or missing - trigger async count
-	local token_count_ok, token_count_module = pcall(require, "token-count")
-	if not token_count_ok then
-		return "" -- Plugin not loaded
-	end
-
-	-- Use async counting to avoid blocking
-	token_count_module.get_current_buffer_count(function(result, error)
-		if result and result.token_count then
-			update_cache(cache.current_buffer, {
-				buffer_id = current_buf,
-				token_count = result.token_count,
-			})
-		else
-			update_cache(cache.current_buffer, {
-				buffer_id = current_buf,
-				token_count = nil,
-			})
-		end
-	end)
-
-	-- Return cached value if we have one for this buffer, even if expired
-	if cache.current_buffer.buffer_id == current_buf and cache.current_buffer.token_count then
-		return "🪙 " .. cache.current_buffer.token_count
+	
+	-- Request token count from unified cache
+	local count = cache_manager.get_file_token_count(buffer_path)
+	if count and count ~= cache_manager.get_config().placeholder_text then
+		return "🪙 " .. count
 	else
 		return ""
 	end
 end
 
---- Get all buffers token count and percentage (cached)
+--- Get all buffers token count display (simplified)
 --- @return string display_text Text to show in lualine
 local function get_all_buffers_display()
+	ensure_initialized()
+	
 	-- Don't count during UI operations that might be sensitive
 	local mode = vim.fn.mode()
 	if mode == "c" then -- Command-line mode
-		return cache.all_buffers.token_count and 
-		       string.format("🪙 %d (%.1f%%)", cache.all_buffers.token_count, cache.all_buffers.percentage) or ""
+		return ""
 	end
 	
 	-- Check if we're in a floating window
 	local win_config = vim.api.nvim_win_get_config(0)
 	if win_config.relative ~= "" then
-		return cache.all_buffers.token_count and 
-		       string.format("🪙 %d (%.1f%%)", cache.all_buffers.token_count, cache.all_buffers.percentage) or ""
-	end
-	-- Check cache validity
-	if is_cache_valid(cache.all_buffers) then
-		if cache.all_buffers.token_count then
-			return string.format("🪙 %d (%.1f%%)", cache.all_buffers.token_count, cache.all_buffers.percentage)
-		else
-			return ""
-		end
-	end
-
-	-- Get fresh data asynchronously and return cached data for now
-	local token_count_ok, buffer_ops = pcall(require, "token-count.utils.buffer_ops")
-	local models_ok, models = pcall(require, "token-count.models.utils")
-	local config_ok, config = pcall(require, "token-count.config")
-
-	if not (token_count_ok and models_ok and config_ok) then
-		vim.notify(
-			"Token Count: Unable to load required modules for lualine integration.\nToken-count.nvim is not loaded!",
-			vim.log.levels.WARN
-		)
 		return ""
 	end
-	--
-	-- -- Get configuration
-	local current_config = config.get()
-	local model_config = models.get_model(current_config.model)
-
-	if not model_config then
-		vim.notify("Token Count: Invalid model configuration for lualine integration", vim.log.levels.WARN)
+	
+	-- Get valid buffers count
+	local buffer_ops_ok, buffer_ops = pcall(require, "token-count.utils.buffer_ops")
+	if not buffer_ops_ok then
 		return ""
 	end
 
-	-- Get valid buffers and count asynchronously
 	local valid_buffers = buffer_ops.get_valid_buffers()
 	if #valid_buffers == 0 then
-		update_cache(cache.all_buffers, { token_count = 0, percentage = 0 })
-		return "🪙 0 (0.0%)"
+		return "🪙 0 buffers"
 	end
+	
+	return string.format("🪙 %d buffers", #valid_buffers)
+end
 
-	buffer_ops.count_multiple_buffers_async(valid_buffers, model_config, function(total_tokens, buffer_results, error)
-		if not error and total_tokens then
-			local percentage = (total_tokens / model_config.context_window) * 100
-			update_cache(cache.all_buffers, {
-				token_count = total_tokens,
-				percentage = percentage,
-			})
-		else
-			update_cache(cache.all_buffers, { token_count = nil, percentage = nil })
-		end
+--- Initialize lualine integration with cache manager
+function M.init()
+	-- Register callback for cache updates to trigger lualine refresh
+	cache_manager.register_update_callback(function(path, path_type)
+		-- Cache updates automatically trigger lualine refresh via the unified cache
+		-- No additional action needed since we're using the unified cache directly
 	end)
-
-	-- -- Return cached value or empty if no cache
-	if cache.all_buffers.token_count then
-		return string.format("🪙 %d (%.1f%%)", cache.all_buffers.token_count, cache.all_buffers.percentage)
-	else
-		return "🪙 0 (0.0%)"
-	end
+	
+	-- Set up buffer change detection for current buffer invalidation
+	local augroup = vim.api.nvim_create_augroup("TokenCountLualine", { clear = true })
+	
+	vim.api.nvim_create_autocmd({"TextChanged", "TextChangedI", "BufWritePost"}, {
+		group = augroup,
+		callback = function(args)
+			local buffer_path = vim.api.nvim_buf_get_name(args.buf)
+			if buffer_path and buffer_path ~= "" then
+				-- Invalidate and reprocess for current buffer
+				cache_manager.invalidate_file(buffer_path, true)
+			end
+		end,
+		desc = "Invalidate cache when current buffer changes for lualine updates",
+	})
 end
 
 --- Lualine component for current buffer token count
@@ -221,50 +158,12 @@ M.all_buffers = {
 		local valid_buffers = buffer_ops.get_valid_buffers()
 		return #valid_buffers > 0
 	end,
-	color = function()
-		-- Change color based on context window usage
-		-- Add defensive checks to prevent accessing undefined values
-		if cache.all_buffers and cache.all_buffers.percentage and type(cache.all_buffers.percentage) == "number" then
-			local config_ok, config = pcall(require, "token-count.config")
-			if config_ok then
-				local current_config = config.get()
-				if current_config and current_config.context_warning_threshold then
-					local threshold = current_config.context_warning_threshold * 100
-					if cache.all_buffers.percentage > threshold then
-						return { fg = "#e06c75" } -- Red for warning
-					end
-				end
-			end
-		end
-		return { fg = "#61afef" } -- Blue for normal (always return a valid color)
-	end,
+	color = { fg = "#61afef" }, -- Blue for normal
 }
 
+--- Clear cache (now delegates to unified cache)
 function M.clear_cache()
-	cache.current_buffer = {
-		buffer_id = nil,
-		token_count = nil,
-		timestamp = 0,
-		cache_duration = 10000,
-	}
-	cache.all_buffers = {
-		token_count = nil,
-		percentage = nil,
-		timestamp = 0,
-		cache_duration = 60000,
-	}
-end
-
---- Configure cache durations
---- @param current_duration number Cache duration for current buffer (ms)
---- @param all_duration number Cache duration for all buffers (ms)
-function M.configure_cache(current_duration, all_duration)
-	if current_duration then
-		cache.current_buffer.cache_duration = current_duration
-	end
-	if all_duration then
-		cache.all_buffers.cache_duration = all_duration
-	end
+	cache_manager.clear_cache()
 end
 
 return M
