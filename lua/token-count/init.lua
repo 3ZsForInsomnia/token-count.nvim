@@ -1,38 +1,58 @@
---- Main Plugin Entry Point
---- This module provides the public API for token-count.nvim
 local M = {}
 
--- Import submodules
-local commands = require("token-count.init.commands")
-local events = require("token-count.init.events")
-local setup = require("token-count.init.setup")
+-- Plugin state
+local _setup_complete = false
+local _deferred_setup = nil
 
 function M.setup(opts)
 	-- Setup configuration
 	local config = require("token-count.config")
 	config.setup(opts)
 
-	-- Initialize cache manager if enabled
-	local current_config = config.get()
-	if current_config.cache and current_config.cache.enabled then
-		local cache_manager = require("token-count.cache")
-		cache_manager.setup(current_config.cache)
+	-- Create user commands (lazy loading on execution)
+	require("token-count.init.commands").create_commands()
+	require("token-count.init.commands").create_venv_commands()
+
+	-- Store options for deferred setup
+	_deferred_setup = opts
+	_setup_complete = true
+	
+	-- Defer heavy initialization until first actual use
+	-- This allows the plugin to load fast but initialize properly when needed
+end
+
+--- Ensure full plugin initialization (called on first real use)
+local function ensure_initialized()
+	if not _setup_complete then
+		error("Plugin not setup - call require('token-count').setup() first")
 	end
-
-	-- Create user commands
-	commands.create_commands()
-	commands.create_venv_commands()
-
-	-- Setup autocommands and events
-	events.setup_autocommands()
-
-	-- Initialize plugin environment
-	setup.initialize_plugin(opts)
+	
+	-- Only run deferred setup once
+	if _deferred_setup ~= nil then
+		local opts = _deferred_setup
+		_deferred_setup = nil -- Mark as completed
+		
+		-- Now do the heavy initialization
+		local config = require("token-count.config").get()
+		
+		-- Initialize cache manager if enabled (deferred)
+		if config.cache and config.cache.enabled then
+			local cache_manager = require("token-count.cache")
+			cache_manager.setup(config.cache)
+		end
+		
+		-- Setup autocommands and events (deferred)
+		require("token-count.init.events").setup_autocommands()
+		
+		-- Initialize plugin environment (deferred)
+		require("token-count.init.setup").initialize_plugin(opts)
+	end
 end
 
 --- Get current buffer token count (for integrations like lualine)
 --- @param callback function Callback function that receives (result, error)
 function M.get_current_buffer_count(callback)
+	ensure_initialized()
 	require("token-count.buffer").count_current_buffer_async(callback)
 end
 
@@ -40,6 +60,7 @@ end
 --- @return number|nil token_count
 --- @return string|nil error
 function M.get_current_buffer_count_sync()
+	ensure_initialized()
 	local config = require("token-count.config").get()
 	local models = require("token-count.models.utils")
 	local buffer = require("token-count.buffer")

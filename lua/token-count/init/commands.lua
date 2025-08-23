@@ -1,35 +1,38 @@
---- User command definitions
 local M = {}
 
---- Create all user commands for the plugin
 function M.create_commands()
 	-- Core token counting commands
 	vim.api.nvim_create_user_command("TokenCount", function()
+		-- Lazy load and ensure initialization on first use
 		require("token-count.commands").count_current_buffer()
 	end, {
 		desc = "Count tokens in current buffer",
 	})
 
 	vim.api.nvim_create_user_command("TokenCountModel", function()
+		-- Lazy load on use
 		require("token-count.commands").change_model()
 	end, {
 		desc = "Change the token counting model",
 	})
 
 	vim.api.nvim_create_user_command("TokenCountAll", function()
+		-- Lazy load on use
 		require("token-count.commands").count_all_buffers()
 	end, {
 		desc = "Count tokens in all valid buffers",
 	})
 
 	vim.api.nvim_create_user_command("TokenCountSelection", function()
+		-- Lazy load on use
 		require("token-count.commands").count_visual_selection()
 	end, {
 		desc = "Count tokens in current visual selection",
 	})
-end
+
 	-- Cache Management Commands
 	vim.api.nvim_create_user_command("TokenCountCacheClear", function()
+		-- Lazy load cache manager
 		local cache_manager = require("token-count.cache")
 		cache_manager.clear_cache()
 		print("Token count cache cleared")
@@ -38,6 +41,7 @@ end
 	})
 
 	vim.api.nvim_create_user_command("TokenCountCacheStats", function()
+		-- Lazy load cache manager
 		local cache_manager = require("token-count.cache")
 		local stats = cache_manager.get_stats()
 		print(string.format(
@@ -53,6 +57,7 @@ end
 	})
 
 	vim.api.nvim_create_user_command("TokenCountCacheRefresh", function()
+		-- Lazy load cache manager
 		local cache_manager = require("token-count.cache")
 		cache_manager.clear_cache()
 		-- Re-queue current directory
@@ -64,10 +69,12 @@ end
 	end, {
 		desc = "Refresh token count cache for current directory",
 	})
+end
 
 --- Create virtual environment management commands
 function M.create_venv_commands()
 	vim.api.nvim_create_user_command("TokenCountVenvStatus", function()
+		-- Lazy load venv module
 		local venv = require("token-count.venv")
 		local status = venv.get_status()
 
@@ -130,6 +137,7 @@ function M.create_venv_commands()
 	})
 
 	vim.api.nvim_create_user_command("TokenCountVenvSetup", function()
+		-- Lazy load venv module
 		local venv = require("token-count.venv")
 		vim.notify("Setting up virtual environment...", vim.log.levels.INFO)
 
@@ -145,6 +153,7 @@ function M.create_venv_commands()
 	})
 
 	vim.api.nvim_create_user_command("TokenCountVenvClean", function()
+		-- Lazy load venv module
 		local venv = require("token-count.venv")
 		vim.ui.input({
 			prompt = "Remove virtual environment? (y/N): ",

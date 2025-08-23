@@ -11,13 +11,9 @@
 
 local M = {}
 
--- Import the unified cache manager
-local cache_manager = require("token-count.cache")
 
--- Auto-initialization flag
 local initialized = false
 
---- Lazy initialization
 local function ensure_initialized()
 	if not initialized then
 		M.init()
@@ -25,8 +21,11 @@ local function ensure_initialized()
 	end
 end
 
---- Get current buffer token count display
---- @return string display_text Text to show in lualine
+ --- Get cache manager (lazy loaded)
+ local function get_cache_manager()
+ 	return require("token-count.cache")
+ end
+ 
 local function get_current_buffer_display()
 	ensure_initialized()
 	
@@ -62,6 +61,7 @@ local function get_current_buffer_display()
 	end
 	
 	-- Request token count from unified cache
+	local cache_manager = get_cache_manager()
 	local count = cache_manager.get_file_token_count(buffer_path)
 	if count and count ~= cache_manager.get_config().placeholder_text then
 		return "🪙 " .. count
@@ -101,8 +101,9 @@ local function get_all_buffers_display()
 	return string.format("🪙 %d buffers", #valid_buffers)
 end
 
---- Initialize lualine integration with cache manager
 function M.init()
+	local cache_manager = get_cache_manager()
+	
 	-- Register callback for cache updates to trigger lualine refresh
 	cache_manager.register_update_callback(function(path, path_type)
 		-- Cache updates automatically trigger lualine refresh via the unified cache
@@ -118,7 +119,7 @@ function M.init()
 			local buffer_path = vim.api.nvim_buf_get_name(args.buf)
 			if buffer_path and buffer_path ~= "" then
 				-- Invalidate and reprocess for current buffer
-				cache_manager.invalidate_file(buffer_path, true)
+				get_cache_manager().invalidate_file(buffer_path, true)
 			end
 		end,
 		desc = "Invalidate cache when current buffer changes for lualine updates",
@@ -161,9 +162,8 @@ M.all_buffers = {
 	color = { fg = "#61afef" }, -- Blue for normal
 }
 
---- Clear cache (now delegates to unified cache)
 function M.clear_cache()
-	cache_manager.clear_cache()
+	get_cache_manager().clear_cache()
 end
 
 return M

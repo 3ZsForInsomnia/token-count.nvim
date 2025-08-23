@@ -1,6 +1,5 @@
 
 local M = {}
-local cache_manager = require("token-count.cache")
 
 local config = {
 	component = {
@@ -16,13 +15,17 @@ local config = {
 	},
 }
 
+--- Get cache manager (lazy loaded)
+local function get_cache_manager()
+	return require("token-count.cache")
+end
 
 local function token_count_component(config, node, _)
 	local count
 	if node.type == "file" then
-		count = cache_manager.get_file_token_count(node:get_id())
+		count = get_cache_manager().get_file_token_count(node:get_id())
 	elseif node.type == "directory" then
-		count = cache_manager.get_directory_token_count(node:get_id())
+		count = get_cache_manager().get_directory_token_count(node:get_id())
 	else
 		return {}
 	end
@@ -75,7 +78,7 @@ function M.setup(user_config)
 	
 	-- Throttle directory scanning to prevent UI blocking
 	local last_scan_time = {}
-	local SCAN_THROTTLE_MS = 2000 -- 2 seconds
+	local SCAN_THROTTLE_MS = 10000 -- 10 seconds - much more conservative
 	
 	local function should_scan_directory(dir_path)
 		local now = vim.loop.hrtime() / 1000000
@@ -90,28 +93,36 @@ function M.setup(user_config)
 	events.subscribe({
 		event = "neo_tree_buffer_enter",
 		handler = function(state)
-			-- Throttled directory scanning with delay
+			-- Very conservative directory scanning with long delay
 			vim.defer_fn(function()
 				if state.tree and state.tree:get_nodes() then
+					local dirs_to_scan = {}
 					for _, node in ipairs(state.tree:get_nodes()) do
 						if node.type == "directory" and node:is_expanded() and should_scan_directory(node:get_id()) then
-							cache_manager.queue_directory_files(node:get_id(), false)
+							table.insert(dirs_to_scan, node:get_id())
 						end
 					end
+					
+					-- Only scan a few directories at a time
+					for i = 1, math.min(2, #dirs_to_scan) do
+						vim.defer_fn(function()
+							get_cache_manager().queue_directory_files(dirs_to_scan[i], false)
+						end, i * 1000) -- 1 second between each directory
+					end
 				end
-			end, 500) -- 500ms delay
+			end, 2000) -- 2 second delay before starting
 		end,
 	})
 	
 	events.subscribe({
 		event = "neo_tree_popup_buffer_enter", 
 		handler = function(state)
-			-- Throttled directory scanning when neotree opens
+			-- Very conservative scanning when neotree opens
 			vim.defer_fn(function()
 				if state.path and should_scan_directory(state.path) then
-					cache_manager.queue_directory_files(state.path, false)
+					get_cache_manager().queue_directory_files(state.path, false)
 				end
-			end, 1000) -- 1 second delay
+			end, 3000) -- 3 second delay
 		end,
 	})
 end
@@ -123,16 +134,14 @@ end
 M.config = config
 
 function M.clear_cache()
-	cache_manager.clear_cache()
+	get_cache_manager().clear_cache()
 end
 
 function M.get_config()
 	return vim.deepcopy(config)
 end
 
---- Get cache statistics
---- @return table stats Cache statistics
 function M.get_cache_stats()
-	return cache_manager.get_stats()
+	return get_cache_manager().get_stats()
 end
 return M

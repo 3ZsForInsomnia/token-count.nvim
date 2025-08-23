@@ -12,6 +12,13 @@ M.defaults = {
 		max_files_per_batch = 10,
 		cache_ttl = 300000, -- 5 minutes
 		placeholder_text = "⋯",
+		lazy_start = true, -- Start cache timer only when first request is made
+	},
+	-- Lazy loading options
+	lazy_loading = {
+		defer_venv_setup = true, -- Defer virtual environment setup until first use
+		defer_autocommands = true, -- Defer setting up autocommands until first use
+		defer_cache_setup = true, -- Defer cache initialization until needed
 	},
 }
 

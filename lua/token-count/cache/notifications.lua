@@ -1,27 +1,77 @@
 --- Notification system for cache updates
 local M = {}
 
+--- Batched notifications to prevent UI spam
+local pending_notifications = {}
+local notification_timer = nil
+local NOTIFICATION_BATCH_DELAY = 1000 -- 1 second
+
+--- Flush pending notifications
+local function flush_notifications()
+    if #pending_notifications == 0 then
+        return
+    end
+    
+    -- Group by type for efficient updates
+    local has_file_updates = false
+    for _, notification in ipairs(pending_notifications) do
+        if notification.path_type == "file" then
+            has_file_updates = true
+            break
+        end
+    end
+    
+    -- Only trigger UI updates if we have actual changes
+    if has_file_updates then
+        vim.schedule(function()
+            -- Trigger neotree refresh if visible (batched)
+            local neo_tree_ok, manager = pcall(require, "neo-tree.sources.manager")
+            if neo_tree_ok then
+                local state = manager.get_state("filesystem")
+                if state and state.winid and vim.api.nvim_win_is_valid(state.winid) then
+                    manager.refresh("filesystem")
+                end
+            end
+        end)
+    end
+    
+    -- Trigger custom callbacks (but don't spam them)
+    local instance = require("token-count.cache.instance").get_instance()
+    if #instance.update_callbacks > 0 and #pending_notifications > 0 then
+        vim.schedule(function()
+            for _, callback in ipairs(instance.update_callbacks) do
+                -- Only call with first notification to avoid spam
+                pcall(callback, pending_notifications[1].path, pending_notifications[1].path_type)
+            end
+        end)
+    end
+    
+    -- Clear pending notifications
+    pending_notifications = {}
+    notification_timer = nil
+end
+
 --- Notify UI components of cache updates
 --- @param path string Path that was updated
 --- @param path_type string Type of path ("file" or "directory")
 function M.notify_cache_updated(path, path_type)
-    local instance = require("token-count.cache.instance").get_instance()
+    -- Add to pending notifications
+    table.insert(pending_notifications, {
+        path = path,
+        path_type = path_type,
+        timestamp = vim.loop.hrtime() / 1000000
+    })
     
-    -- Trigger neotree refresh if visible
-    vim.schedule(function()
-        local neo_tree_ok, manager = pcall(require, "neo-tree.sources.manager")
-        if neo_tree_ok then
-            local state = manager.get_state("filesystem")
-            if state and state.winid and vim.api.nvim_win_is_valid(state.winid) then
-                manager.refresh("filesystem")
-            end
-        end
-    end)
-    
-    -- Trigger custom callbacks
-    for _, callback in ipairs(instance.update_callbacks) do
-        pcall(callback, path, path_type)
+    -- Start or restart the batch timer
+    if notification_timer then
+        notification_timer:stop()
+        notification_timer:close()
     end
+    
+    notification_timer = vim.loop.new_timer()
+    notification_timer:start(NOTIFICATION_BATCH_DELAY, 0, function()
+        flush_notifications()
+    end)
 end
 
 --- Register callback for cache updates

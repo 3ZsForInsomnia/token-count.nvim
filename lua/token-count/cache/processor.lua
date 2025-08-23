@@ -88,74 +88,110 @@ function M.process_file(file_path, callback)
     
     instance.processing[file_path] = true
     
-    -- Read file content asynchronously to prevent blocking
-    vim.schedule(function()
-        local file = io.open(file_path, "r")
-        if not file then
+    -- Use libuv for truly async file reading to prevent any blocking
+    vim.loop.fs_open(file_path, "r", 438, function(err, fd)
+        if err or not fd then
             instance.processing[file_path] = nil
-            callback(false, "Cannot read file")
+            callback(false, "Cannot open file: " .. (err or "unknown error"))
             return
         end
         
-        local content = file:read("*a")
-        file:close()
+        vim.loop.fs_fstat(fd, function(stat_err, stat)
+            if stat_err or not stat then
+                vim.loop.fs_close(fd, function() end)
+                instance.processing[file_path] = nil
+                callback(false, "Cannot stat file: " .. (stat_err or "unknown error"))
+                return
+            end
+            
+            -- Skip large files to prevent memory issues
+            if stat.size > 1024 * 1024 then -- 1MB limit
+                vim.loop.fs_close(fd, function() end)
+                instance.processing[file_path] = nil
+                callback(false, "File too large")
+                return
+            end
+            
+            vim.loop.fs_read(fd, stat.size, 0, function(read_err, content)
+                vim.loop.fs_close(fd, function() end)
+                
+                if read_err or not content then
+                    instance.processing[file_path] = nil
+                    callback(false, "Cannot read file content: " .. (read_err or "unknown error"))
+                    return
+                end
+                
+                if content == "" then
+                    instance.processing[file_path] = nil
+                    instance.cache[file_path] = {
+                        count = 0,
+                        formatted = "0",
+                        timestamp = vim.loop.hrtime() / 1000000,
+                        status = "ready",
+                        type = "file"
+                    }
+                    callback(true, {count = 0, formatted = "0"})
+                    return
+                end
         
-        if not content or content == "" then
-            instance.processing[file_path] = nil
+                -- Process content on next tick to prevent blocking
+                vim.schedule(function()
+                    M._process_content(file_path, content, callback)
+                end)
+            end)
+        end)
+    end)
+end
+
+--- Process file content (separated for better async flow)
+--- @param file_path string File path
+--- @param content string File content  
+--- @param callback function Callback function
+function M._process_content(file_path, content, callback)
+    local instance = require("token-count.cache.instance").get_instance()
+    
+    -- Get model and provider
+    local models_ok, models = pcall(require, "token-count.models.utils")
+    local config_module_ok, config_module = pcall(require, "token-count.config")
+        
+    if not (models_ok and config_module_ok) then
+        instance.processing[file_path] = nil
+        callback(false, "Missing dependencies")
+        return
+    end
+        
+    local current_config = config_module.get()
+    local model_config = models.get_model(current_config.model)
+    if not model_config then
+        instance.processing[file_path] = nil
+        callback(false, "Invalid model config")
+        return
+    end
+        
+    local provider = models.get_provider_handler(model_config.provider)
+    if not provider then
+        instance.processing[file_path] = nil
+        callback(false, "Invalid provider")
+        return
+    end
+        
+    -- Count tokens asynchronously
+    provider.count_tokens_async(content, model_config.encoding, function(count, error)
+        instance.processing[file_path] = nil
+            
+        if count then
+            local formatted = M.format_token_count(count)
             instance.cache[file_path] = {
-                count = 0,
-                formatted = "0",
+                count = count,
+                formatted = formatted,
                 timestamp = vim.loop.hrtime() / 1000000,
                 status = "ready",
                 type = "file"
             }
-            callback(true, {count = 0, formatted = "0"})
-            return
+            callback(true, {count = count, formatted = formatted})
+        else
+            callback(false, error or "Unknown error")
         end
-        
-        -- Get model and provider
-        local models_ok, models = pcall(require, "token-count.models.utils")
-        local config_module_ok, config_module = pcall(require, "token-count.config")
-        
-        if not (models_ok and config_module_ok) then
-            instance.processing[file_path] = nil
-            callback(false, "Missing dependencies")
-            return
-        end
-        
-        local current_config = config_module.get()
-        local model_config = models.get_model(current_config.model)
-        if not model_config then
-            instance.processing[file_path] = nil
-            callback(false, "Invalid model config")
-            return
-        end
-        
-        local provider = models.get_provider_handler(model_config.provider)
-        if not provider then
-            instance.processing[file_path] = nil
-            callback(false, "Invalid provider")
-            return
-        end
-        
-        -- Count tokens asynchronously
-        provider.count_tokens_async(content, model_config.encoding, function(count, error)
-            instance.processing[file_path] = nil
-            
-            if count then
-                local formatted = M.format_token_count(count)
-                instance.cache[file_path] = {
-                    count = count,
-                    formatted = formatted,
-                    timestamp = vim.loop.hrtime() / 1000000,
-                    status = "ready",
-                    type = "file"
-                }
-                callback(true, {count = count, formatted = formatted})
-            else
-                callback(false, error or "Unknown error")
-            end
-        end)
     end)
 end
 
