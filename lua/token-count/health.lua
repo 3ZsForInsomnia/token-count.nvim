@@ -162,6 +162,57 @@ function M.check()
 		vim.health.warn("anthropic library", anthropic_err .. " (optional - only needed for Anthropic models)")
 	end
 
+	-- Check google-genai library (optional)
+	local gemini_ok, gemini_err = check_python_library("google.genai")
+	if gemini_ok then
+		report_check("google-genai library", true, nil, "Available for future use")
+	else
+		vim.health.warn("google-genai library", gemini_err .. " (optional - only needed for Google GenAI models)")
+	end
+
+	-- Check provider API keys
+	local anthropic_api_key = vim.fn.getenv("ANTHROPIC_API_KEY")
+	if anthropic_api_key and anthropic_api_key ~= vim.NIL and anthropic_api_key ~= "" then
+		report_check("Anthropic API key", true, nil, "ANTHROPIC_API_KEY configured")
+	else
+		vim.health.warn("Anthropic API key", "ANTHROPIC_API_KEY environment variable not set (required for Anthropic models)")
+	end
+
+	local google_api_key = vim.fn.getenv("GOOGLE_API_KEY")
+	if google_api_key and google_api_key ~= vim.NIL and google_api_key ~= "" then
+		report_check("Google API key", true, nil, "GOOGLE_API_KEY configured")
+	else
+		vim.health.warn("Google API key", "GOOGLE_API_KEY environment variable not set (required for Google GenAI models)")
+	end
+	-- Check provider availability
+	local providers = {
+		{ name = "tiktoken", module = "token-count.providers.tiktoken", required = true },
+		{ name = "anthropic", module = "token-count.providers.anthropic", required = false },
+		{ name = "gemini", module = "token-count.providers.gemini", required = false },
+	}
+
+	for _, provider in ipairs(providers) do
+		local provider_ok, provider_module = pcall(require, provider.module)
+		if provider_ok and provider_module.check_availability then
+			local available, error_msg = provider_module.check_availability()
+			if available then
+				report_check(provider.name .. " provider", true, nil, "Ready")
+			else
+				if provider.required then
+					vim.health.error(provider.name .. " provider", error_msg)
+				else
+					vim.health.warn(provider.name .. " provider", error_msg)
+				end
+			end
+		else
+			if provider.required then
+				vim.health.error(provider.name .. " provider", "Failed to load provider module")
+			else
+				vim.health.warn(provider.name .. " provider", "Failed to load provider module")
+			end
+		end
+	end
+
 	-- Check models configuration
 	local models_ok, models_err = check_models_config()
 	report_check("models configuration", models_ok, models_err)
@@ -179,6 +230,11 @@ function M.check()
 	vim.health.info("Run ':TokenCount' to test token counting on current buffer")
 	vim.health.info("Run ':TokenCountModel' to change the active model")
 	vim.health.info("Run ':TokenCountAll' to count tokens across all buffers")
+	vim.health.info("Run ':TokenCountVenvStatus' for detailed provider and dependency status")
+	vim.health.info("")
+	vim.health.info("To enable additional providers:")
+	vim.health.info("  - Anthropic: Set ANTHROPIC_API_KEY environment variable")
+	vim.health.info("  - Google GenAI: Set GOOGLE_API_KEY environment variable")
 end
 
 return M

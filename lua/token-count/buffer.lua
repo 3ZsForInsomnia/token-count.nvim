@@ -184,7 +184,6 @@ end
 function M.count_current_buffer_async(callback)
 	local log = require("token-count.log")
 
-	-- Get current buffer and validate
 	local buffer_id, valid = M.get_current_buffer_if_valid()
 	if not valid then
 		local error_msg = "Current buffer has invalid filetype for token counting"
@@ -193,7 +192,6 @@ function M.count_current_buffer_async(callback)
 		return
 	end
 
-	-- Get buffer contents
 	local content = M.get_buffer_contents(buffer_id)
 	if not content or content == "" then
 		local error_msg = "Buffer is empty"
@@ -202,11 +200,9 @@ function M.count_current_buffer_async(callback)
 		return
 	end
 
-	-- Get current configuration
 	local config = require("token-count.config").get()
 	local model_name = config.model
 
-	-- Get model configuration
 	local models = require("token-count.models.utils")
 	local model_config = models.get_model(model_name)
 	if not model_config then
@@ -216,7 +212,6 @@ function M.count_current_buffer_async(callback)
 		return
 	end
 
-	-- Get provider handler
 	local provider = models.get_provider_handler(model_config.provider)
 	if not provider then
 		local error_msg = "Failed to load provider: " .. model_config.provider
@@ -225,7 +220,6 @@ function M.count_current_buffer_async(callback)
 		return
 	end
 
-	-- Count tokens using the appropriate provider
 	log.info("Counting tokens for model: " .. model_name .. " (provider: " .. model_config.provider .. ")")
 
 	provider.count_tokens_async(content, model_config.encoding, function(token_count, error)

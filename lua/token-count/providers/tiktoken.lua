@@ -82,4 +82,23 @@ function M.count_tokens_sync(text, encoding)
 	end
 end
 
+function M.check_availability()
+	-- Check if tiktoken library is available in the managed venv
+	local venv = require("token-count.venv")
+	local status = venv.get_status()
+	if not status.ready then
+		return false, "Virtual environment not ready"
+	end
+
+	local python_path = venv.get_python_path()
+	local check_cmd = { python_path, "-c", "import tiktoken; print('OK')" }
+	local result = vim.system(check_cmd, { text = true }):wait()
+
+	if result.code ~= 0 or not result.stdout:match("OK") then
+		return false, "tiktoken library not installed in venv (will be installed automatically if needed)"
+	end
+
+	return true, nil
+end
+
 return M

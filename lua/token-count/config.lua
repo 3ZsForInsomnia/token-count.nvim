@@ -12,23 +12,19 @@ M.defaults = {
 function M.setup(user_config)
 	user_config = user_config or {}
 
-	-- Deep merge user config with defaults
 	local config = vim.tbl_deep_extend("force", M.defaults, user_config)
 
-	-- Validate log_level
 	local valid_levels = { info = true, warn = true, error = true }
 	if not valid_levels[config.log_level] then
 		vim.notify("Invalid log_level '" .. tostring(config.log_level) .. "'. Using 'warn'.", vim.log.levels.WARN)
 		config.log_level = "warn"
 	end
 
-	-- Store the merged config
 	M.current = config
 
 	return config
 end
 
---- Get current configuration
 --- @return table config Current configuration
 function M.get()
 	return M.current or M.defaults
