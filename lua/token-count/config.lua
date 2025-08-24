@@ -1,7 +1,7 @@
 local M = {}
 
 M.defaults = {
-	model = "gpt-4",
+	model = "gpt-5",
 	log_level = "warn", -- "info", "warn", "error"
 	context_warning_threshold = 0.4, -- Warn when buffers use >40% of context window
 	enable_official_anthropic_counter = false, -- Use official Anthropic API for token counting

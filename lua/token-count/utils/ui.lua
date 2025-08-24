@@ -11,6 +11,8 @@ function M.show_model_selection(callback)
 	-- Fallback to vim.ui.select
 	local models = require("token-count.models.utils")
 	local formatting = require("token-count.utils.formatting")
+	local config = require("token-count.config").get()
+	local current_model = config.model
 
 	local searchable_models = models.get_searchable_models()
 	local technical_names = {}
@@ -22,9 +24,14 @@ function M.show_model_selection(callback)
 
 		table.insert(technical_names, model_entry.technical_name)
 
+		-- Check if this is the current model and add indicator
+		local is_current = model_entry.technical_name == current_model
+		local current_indicator = is_current and "● " or "  "
+
 		-- Create rich display format: "Model Name │ Provider │ Input: 128,000 │ Output: 16,384 │ technical-name"
 		local display_line = string.format(
-			"%s │ %s │ In: %s │ Out: %s │ %s",
+			"%s%s │ %s │ In: %s │ Out: %s │ %s",
+			current_indicator,
 			model_entry.nice_name,
 			model_entry.provider,
 			context_window_formatted,
@@ -35,7 +42,7 @@ function M.show_model_selection(callback)
 	end
 
 	vim.ui.select(model_display, {
-		prompt = "Select model (Name │ Provider │ Input │ Output │ ID):",
+		prompt = "Select model (● = current, Name │ Provider │ Input │ Output │ ID):",
 		format_item = function(item)
 			return item
 		end,
