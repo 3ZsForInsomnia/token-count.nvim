@@ -130,9 +130,6 @@ function M.get_searchable_models()
     return searchable
 end
 
---- Get models by provider
---- @param provider_name string The provider name ("tokencost", "deepseek", etc.)
---- @return table<string, table> models Map of model names to configurations for the provider
 function M.get_models_by_provider(provider_name)
     local definitions = require('token-count.models.definitions')
     local provider_models = {}

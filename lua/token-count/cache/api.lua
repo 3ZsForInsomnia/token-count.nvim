@@ -7,6 +7,34 @@ local directory = require("token-count.cache.directory")
 local timer = require("token-count.cache.timer")
 local notifications = require("token-count.cache.notifications")
 
+--- Check if file is in an active or visible buffer
+--- @param file_path string File path to check
+--- @return boolean is_active Whether file is in active/visible buffer
+function M._is_file_in_active_buffer(file_path)
+    -- Get all loaded buffers
+    local buffers = vim.api.nvim_list_bufs()
+    
+    for _, buf_id in ipairs(buffers) do
+        if vim.api.nvim_buf_is_loaded(buf_id) then
+            local buf_name = vim.api.nvim_buf_get_name(buf_id)
+            if buf_name == file_path then
+                -- Check if buffer is visible in any window
+                local win_ids = vim.fn.win_findbuf(buf_id)
+                if #win_ids > 0 then
+                    return true
+                end
+                
+                -- Also consider current buffer as active even if not visible
+                if buf_id == vim.api.nvim_get_current_buf() then
+                    return true
+                end
+            end
+        end
+    end
+    
+    return false
+end
+
 --- Get token count for a file or directory (unified API)
 --- @param path string Path to the file or directory
 --- @param path_type string|nil "file" or "directory", auto-detected if nil
@@ -51,7 +79,11 @@ end
 --- @return string placeholder or cached value
 function M._handle_file_request(inst, path)
     -- If not cached and not being processed, queue it
-    if not inst.processing[path] and processor.should_process_file(path) then
+    -- Check if it's an active buffer to skip size limits
+    local is_active = M._is_file_in_active_buffer(path)
+    local should_process, _ = processor.should_process_file(path, is_active)
+    
+    if not inst.processing[path] and should_process then
         -- Add to queue if not already there
         local already_queued = false
         for _, queued_path in ipairs(inst.process_queue) do

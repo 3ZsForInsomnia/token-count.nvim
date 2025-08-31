@@ -8,9 +8,11 @@ local management = require("token-count.cache.management")
 
 -- Import individual modules for internal access
 local instance_manager = require("token-count.cache.instance")
-local processor = require("token-count.cache.processor")
+-- Use enhanced processor for better background performance
+local processor = require("token-count.cache.processor_enhanced")
 local directory = require("token-count.cache.directory")
-local timer = require("token-count.cache.timer")
+-- Use enhanced timer for better UI responsiveness
+local timer = require("token-count.cache.timer_enhanced")
 local notifications = require("token-count.cache.notifications")
 
 -- Export main functions from setup module

@@ -1,16 +1,35 @@
 local M = {}
 
 function M.count_tokens_async(text, model_name, callback)
+	local errors = require("token-count.utils.errors")
+	
+	-- Use error handling wrapper for graceful degradation
+	errors.with_fallback(function(fallback_callback)
+		M._count_tokens_primary(text, model_name, fallback_callback)
+	end, text, callback)
+end
+
+function M._count_tokens_primary(text, model_name, callback)
 	-- Get the path to the tokencost counter script
 	local script_path = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h") .. "/tokencost_counter.py"
 
 	-- Use the plugin's managed virtual environment
 	local venv = require("token-count.venv")
+	local errors = require("token-count.utils.errors")
 
 	-- Check if venv is ready
 	local status = venv.get_status()
 	if not status.ready then
-		callback(nil, "Virtual environment not ready. Run :TokenCountVenvSetup to initialize.")
+		local error_obj = errors.create_error(
+			errors.ErrorTypes.VENV_NOT_READY,
+			"Virtual environment not ready",
+			{text = text}
+		)
+		
+		-- Attempt recovery with auto-setup
+		errors.handle_with_recovery(error_obj, callback, function()
+			M._count_tokens_primary(text, model_name, callback)
+		end)
 		return
 	end
 

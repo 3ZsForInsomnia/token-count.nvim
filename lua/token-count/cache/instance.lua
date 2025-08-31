@@ -25,15 +25,21 @@ local function init_instance()
 
 		-- Configuration
 		config = {
-			interval = 5000, -- 5 seconds - faster processing for better responsiveness
+			interval = 3000, -- 3 seconds - optimized for background processing
 			max_files_per_batch = 1, -- Always process 1 file at a time
 			cache_ttl = 300000, -- 5 minutes cache TTL in milliseconds
 			directory_cache_ttl = 600000, -- 10 minutes for directories
 			placeholder_text = "⋯", -- Placeholder while counting
 			enable_directory_caching = true,
 			enable_file_caching = true,
-			request_debounce = 250, -- 250ms debounce for immediate requests (less aggressive)
+			request_debounce = 500, -- 500ms debounce for better UI responsiveness
 			lazy_start = true, -- Start timer only when first request is made
+			
+			-- Enhanced performance settings
+			max_concurrent_processing = 2, -- Max simultaneous processing jobs
+			ui_responsiveness_check = true, -- Skip processing when UI is busy
+			adaptive_intervals = true, -- Use adaptive processing intervals
+			background_priority = true, -- Prioritize UI responsiveness over processing speed
 		},
 
 		-- Callbacks for UI updates

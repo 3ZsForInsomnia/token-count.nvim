@@ -5,6 +5,10 @@ local _setup_complete = false
 local _deferred_setup = nil
 
 function M.setup(opts)
+	-- Check system compatibility first
+	local version = require("token-count.version")
+	version.initialize()
+	
 	-- Setup configuration
 	local config = require("token-count.config")
 	config.setup(opts)
