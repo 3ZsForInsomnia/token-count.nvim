@@ -3,7 +3,11 @@ local M = {}
 local log = require("token-count.log")
 local processor = require("token-count.cache.processor")
 
---- Ensure background timer is started (lazy initialization)
+-- Lazy load cleanup system to avoid circular dependencies
+local function get_cleanup()
+	local cleanup_ok, cleanup = pcall(require, "token-count.cleanup")
+	return cleanup_ok and cleanup or nil
+end
 local function ensure_timer_started()
 	local instance = require("token-count.cache.instance").get_instance()
 	
@@ -67,6 +71,13 @@ function M.start_timer()
    	end
     
     instance.timer = vim.loop.new_timer()
+    
+    -- Register timer for cleanup tracking
+    local cleanup = get_cleanup()
+    if cleanup then
+        cleanup.register_timer(instance.timer, "cache_main_timer")
+    end
+    
     instance.timer:start(100, instance.config.interval, function()
         vim.schedule(function()
             M.process_queue_batch()
@@ -104,6 +115,13 @@ function M.debounced_immediate_processing(path)
     end
     
     instance.debounce_timers[debounce_key] = vim.loop.new_timer()
+    
+    -- Register debounce timer for cleanup tracking
+    local cleanup = get_cleanup()
+    if cleanup then
+        cleanup.register_timer(instance.debounce_timers[debounce_key], "debounce_" .. debounce_key)
+    end
+    
     instance.debounce_timers[debounce_key]:start(instance.config.request_debounce or 100, 0, function()
         vim.schedule(function()
             if #instance.process_queue > 0 and not instance.processing[path] then

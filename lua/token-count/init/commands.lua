@@ -69,6 +69,14 @@ function M.create_commands()
 	end, {
 		desc = "Refresh token count cache for current directory",
 	})
+	
+	vim.api.nvim_create_user_command("TokenCountCleanup", function()
+		-- Manual cleanup command for users
+		require("token-count").cleanup()
+		vim.notify("Token count plugin cleanup completed", vim.log.levels.INFO)
+	end, {
+		desc = "Manually clean up token-count plugin resources",
+	})
 end
 
 --- Create virtual environment management commands

@@ -73,10 +73,15 @@ function M.get_config()
     return vim.deepcopy(inst.config)
 end
 
---- Cleanup on plugin unload
 function M.cleanup()
     timer.stop_timer()
     instance_manager.reset_instance()
+    
+    -- Use the enhanced cleanup system
+    local cleanup_ok, cleanup = pcall(require, "token-count.cleanup")
+    if cleanup_ok then
+        cleanup.cleanup_all()
+    end
 end
 
 return M

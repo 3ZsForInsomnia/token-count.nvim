@@ -1,10 +1,12 @@
---- Cache instance singleton management
 local M = {}
 
--- Singleton instance
 local instance = nil
 
---- Initialize singleton instance
+-- Lazy load cleanup system to avoid circular dependencies
+local function get_cleanup()
+	local cleanup_ok, cleanup = pcall(require, "token-count.cleanup")
+	return cleanup_ok and cleanup or nil
+end
 local function init_instance()
 	if instance then
 		return instance
@@ -64,11 +66,22 @@ function M.get_instance()
 	return instance or init_instance()
 end
 
---- Reset instance (for testing)
 function M.reset_instance()
 	if instance and instance.timer then
 		instance.timer:stop()
 		instance.timer:close()
+		
+		-- Cleanup debounce timers
+		if instance.debounce_timers then
+			for key, timer in pairs(instance.debounce_timers) do
+				if timer then
+					pcall(function()
+						timer:stop()
+						timer:close()
+					end)
+				end
+			end
+		end
 	end
 	instance = nil
 end

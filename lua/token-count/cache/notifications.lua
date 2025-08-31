@@ -1,7 +1,10 @@
---- Notification system for cache updates
 local M = {}
 
---- Batched notifications to prevent UI spam
+-- Lazy load cleanup system to avoid circular dependencies
+local function get_cleanup()
+	local cleanup_ok, cleanup = pcall(require, "token-count.cleanup")
+	return cleanup_ok and cleanup or nil
+end
 local pending_notifications = {}
 local notification_timer = nil
 local NOTIFICATION_BATCH_DELAY = 1000 -- 1 second
@@ -70,6 +73,13 @@ function M.notify_cache_updated(path, path_type)
 	end
 
 	notification_timer = vim.loop.new_timer()
+	
+	-- Register timer for cleanup tracking
+	local cleanup = get_cleanup()
+	if cleanup then
+		cleanup.register_timer(notification_timer, "notification_batch_timer")
+	end
+	
 	notification_timer:start(NOTIFICATION_BATCH_DELAY, 0, function()
 		flush_notifications()
 	end)

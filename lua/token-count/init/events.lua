@@ -1,8 +1,11 @@
 local M = {}
---- Plugin state for lazy autocommand setup
 local _autocommands_setup = false
 
---- Setup autocommands for the plugin
+-- Lazy load cleanup system to avoid circular dependencies
+local function get_cleanup()
+	local cleanup_ok, cleanup = pcall(require, "token-count.cleanup")
+	return cleanup_ok and cleanup or nil
+end
 function M.setup_autocommands()
 	-- Prevent double setup
 	if _autocommands_setup then
@@ -16,6 +19,12 @@ function M.setup_autocommands()
 
 	-- Setup autocommands
 	local augroup = vim.api.nvim_create_augroup("TokenCount", { clear = true })
+	
+	-- Register autocommand group for cleanup tracking
+	local cleanup = get_cleanup()
+	if cleanup then
+		cleanup.register_autocommand_group(augroup, "token_count_main")
+	end
 
 	-- Update token count cache on buffer save
 	vim.api.nvim_create_autocmd("BufWritePost", {

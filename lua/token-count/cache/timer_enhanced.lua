@@ -1,9 +1,12 @@
---- Enhanced timer with better background processing and UI responsiveness
 local M = {}
 
 local log = require("token-count.log")
 
--- Performance tuning constants
+-- Lazy load cleanup system to avoid circular dependencies
+local function get_cleanup()
+	local cleanup_ok, cleanup = pcall(require, "token-count.cleanup")
+	return cleanup_ok and cleanup or nil
+end
 local PERFORMANCE_CONFIG = {
     MIN_PROCESSING_INTERVAL = 2000,    -- Minimum 2s between processing cycles
     ADAPTIVE_INTERVAL_MAX = 10000,     -- Max interval when system is busy
@@ -181,6 +184,12 @@ function M.start_timer()
     -- Start adaptive timer
     instance.timer = vim.loop.new_timer()
     
+    -- Register timer for cleanup tracking
+    local cleanup = get_cleanup()
+    if cleanup then
+        cleanup.register_timer(instance.timer, "cache_enhanced_timer")
+    end
+    
     -- Use a shorter initial interval, then adapt
     local initial_interval = math.min(instance.config.interval, PERFORMANCE_CONFIG.MIN_PROCESSING_INTERVAL)
     
@@ -259,6 +268,13 @@ function M.debounced_immediate_processing(path)
         (instance.config.request_debounce or 250) * 2
     
     instance.debounce_timers[debounce_key] = vim.loop.new_timer()
+    
+    -- Register debounce timer for cleanup tracking
+    local cleanup = get_cleanup()
+    if cleanup then
+        cleanup.register_timer(instance.debounce_timers[debounce_key], "enhanced_debounce_" .. debounce_key)
+    end
+    
     instance.debounce_timers[debounce_key]:start(debounce_time, 0, function()
         vim.schedule(function()
             -- Double-check UI responsiveness before processing

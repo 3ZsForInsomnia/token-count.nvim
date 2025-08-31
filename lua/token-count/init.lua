@@ -50,6 +50,12 @@ local function ensure_initialized()
 		
 		-- Initialize plugin environment (deferred)
 		require("token-count.init.setup").initialize_plugin(opts)
+		
+		-- Initialize cleanup system
+		local cleanup_ok, cleanup = pcall(require, "token-count.cleanup")
+		if cleanup_ok then
+			cleanup.initialize()
+		end
 	end
 end
 
@@ -97,11 +103,25 @@ function M.get_available_models()
 	return require("token-count.models.utils").get_available_models()
 end
 
---- Get current model configuration
---- @return table model_config Current model configuration
 function M.get_current_model()
 	local config = require("token-count.config").get()
 	return require("token-count.models.utils").get_model(config.model)
 end
 
+--- Cleanup function to be called on plugin unload/nvim exit
+function M.cleanup()
+    require("token-count.log").info("Starting plugin cleanup...")
+    
+    -- Stop and cleanup cache system
+    local cache_ok, cache = pcall(require, "token-count.cache")
+    if cache_ok and cache.cleanup then
+        cache.cleanup()
+    end
+    
+    -- Reset plugin state
+    _setup_complete = false
+    _deferred_setup = nil
+    
+    require("token-count.log").info("Plugin cleanup completed")
+end
 return M

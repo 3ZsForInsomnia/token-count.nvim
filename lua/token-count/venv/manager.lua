@@ -1,8 +1,12 @@
---- Virtual environment creation and management
 local M = {}
 
 local utils = require("token-count.venv.utils")
 
+-- Lazy load cleanup system to avoid circular dependencies
+local function get_cleanup()
+	local cleanup_ok, cleanup = pcall(require, "token-count.cleanup")
+	return cleanup_ok and cleanup or nil
+end
 --- Create virtual environment
 --- @param callback function Callback function that receives (success, error)
 function M.create_venv(callback)
@@ -39,6 +43,12 @@ function M.create_venv(callback)
 			end
 		end,
 		on_exit = function(_, exit_code)
+			-- Unregister job on completion
+			local cleanup = get_cleanup()
+			if cleanup then
+				cleanup.unregister_job(job_id)
+			end
+			
 			if exit_code == 0 then
 				log.info("Virtual environment created successfully")
 				callback(true, nil)
@@ -54,10 +64,15 @@ function M.create_venv(callback)
 		local error_msg = "Failed to start venv creation process"
 		log.error(error_msg)
 		callback(false, error_msg)
+	else
+		-- Register job for cleanup tracking
+		local cleanup = get_cleanup()
+		if cleanup then
+			cleanup.register_job(job_id)
+		end
 	end
 end
 
---- Clean up the virtual environment (remove it completely)
 --- @param callback function Callback function that receives (success, error)
 function M.clean_venv(callback)
 	local venv_path = utils.get_venv_path()
@@ -82,6 +97,12 @@ function M.clean_venv(callback)
 		stdout_buffered = true,
 		stderr_buffered = true,
 		on_exit = function(_, exit_code)
+			-- Unregister job on completion
+			local cleanup = get_cleanup()
+			if cleanup then
+				cleanup.unregister_job(job_id)
+			end
+			
 			if exit_code == 0 then
 				log.info("Virtual environment removed successfully")
 				callback(true, nil)
@@ -97,6 +118,12 @@ function M.clean_venv(callback)
 		local error_msg = "Failed to start venv removal process"
 		log.error(error_msg)
 		callback(false, error_msg)
+	else
+		-- Register job for cleanup tracking
+		local cleanup = get_cleanup()
+		if cleanup then
+			cleanup.register_job(job_id)
+		end
 	end
 end
 

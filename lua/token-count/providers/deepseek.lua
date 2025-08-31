@@ -1,4 +1,9 @@
 local M = {}
+-- Lazy load cleanup system to avoid circular dependencies
+local function get_cleanup()
+	local cleanup_ok, cleanup = pcall(require, "token-count.cleanup")
+	return cleanup_ok and cleanup or nil
+end
 
 function M.count_tokens_async(text, model_name, callback)
 	-- Get the path to the deepseek counter script
@@ -21,6 +26,12 @@ function M.count_tokens_async(text, model_name, callback)
 		stdout_buffered = true,
 		stderr_buffered = true,
 		on_stdout = function(_, data)
+			-- Unregister job on completion
+			local cleanup = get_cleanup()
+			if cleanup then
+				cleanup.unregister_job(job_id)
+			end
+			
 			if data and data[1] and data[1] ~= "" then
 				local token_count = tonumber(data[1])
 				if token_count then
@@ -37,6 +48,12 @@ function M.count_tokens_async(text, model_name, callback)
 			end
 		end,
 		on_exit = function(_, exit_code)
+			-- Unregister job on exit
+			local cleanup = get_cleanup()
+			if cleanup then
+				cleanup.unregister_job(job_id)
+			end
+			
 			if exit_code ~= 0 then
 				callback(nil, "DeepSeek tokenizer process failed with exit code: " .. exit_code)
 			end
@@ -45,6 +62,12 @@ function M.count_tokens_async(text, model_name, callback)
 
 	if job_id <= 0 then
 		callback(nil, "Failed to start DeepSeek tokenizer job")
+	else
+		-- Register job for cleanup tracking
+		local cleanup = get_cleanup()
+		if cleanup then
+			cleanup.register_job(job_id)
+		end
 	end
 end
 

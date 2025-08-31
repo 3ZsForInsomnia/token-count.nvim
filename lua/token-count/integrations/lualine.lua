@@ -113,6 +113,12 @@ function M.init()
 	-- Set up buffer change detection for current buffer invalidation
 	local augroup = vim.api.nvim_create_augroup("TokenCountLualine", { clear = true })
 	
+	-- Register autocommand group for cleanup tracking
+	local cleanup_ok, cleanup = pcall(require, "token-count.cleanup")
+	if cleanup_ok then
+		cleanup.register_autocommand_group(augroup, "token_count_lualine")
+	end
+	
 	vim.api.nvim_create_autocmd({"TextChanged", "TextChangedI", "BufWritePost"}, {
 		group = augroup,
 		callback = function(args)

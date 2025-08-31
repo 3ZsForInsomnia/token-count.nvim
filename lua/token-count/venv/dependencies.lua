@@ -1,9 +1,12 @@
---- Dependency checking and installation
 local M = {}
 
 local utils = require("token-count.venv.utils")
 
---- Check if a dependency is installed in the venv
+-- Lazy load cleanup system to avoid circular dependencies
+local function get_cleanup()
+	local cleanup_ok, cleanup = pcall(require, "token-count.cleanup")
+	return cleanup_ok and cleanup or nil
+end
 --- @param dependency_name string The dependency name (tiktoken, anthropic, gemini)
 --- @return boolean installed Whether the dependency is available
 --- @return string|nil error Error message if check failed
@@ -72,6 +75,12 @@ function M.install_dependency(dependency_name, callback)
 			end
 		end,
 		on_exit = function(_, exit_code)
+			-- Unregister job on completion
+			local cleanup = get_cleanup()
+			if cleanup then
+				cleanup.unregister_job(job_id)
+			end
+			
 			if exit_code == 0 then
 				log.info(dep_config.display_name .. " installed successfully")
 				callback(true, nil)
@@ -87,6 +96,12 @@ function M.install_dependency(dependency_name, callback)
 		local error_msg = "Failed to start " .. dep_config.display_name .. " installation"
 		log.error(error_msg)
 		callback(false, error_msg)
+	else
+		-- Register job for cleanup tracking
+		local cleanup = get_cleanup()
+		if cleanup then
+			cleanup.register_job(job_id)
+		end
 	end
 end
 
