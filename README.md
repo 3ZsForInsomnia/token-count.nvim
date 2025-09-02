@@ -14,7 +14,7 @@ A Neovim plugin for counting tokens in text files using various AI model tokeniz
 
 ```lua
 {
-  "zacharylevinw/token-count.nvim",
+  "3ZsForInsomnia/token-count.nvim",
   dependencies = {
     "nvim-telescope/telescope.nvim", -- Optional: for enhanced model selection
     "olimorris/codecompanion.nvim",  -- Optional: for CodeCompanion integration
