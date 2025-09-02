@@ -19,12 +19,10 @@ A Neovim plugin for counting tokens in text files using various AI model tokeniz
     "nvim-telescope/telescope.nvim", -- Optional: for enhanced model selection
     "olimorris/codecompanion.nvim",  -- Optional: for CodeCompanion integration
   },
-  config = function()
-    require("token-count").setup({
-      model = "gpt-4",      -- Default model for counting
-      log_level = "warn",   -- "info", "warn", "error"
-    })
-  end,
+  opts = {
+    model = "gpt-5",      -- Default model for counting
+  },
+  config = true,
 }
 ```
 
