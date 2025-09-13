@@ -23,9 +23,26 @@ end
 local function token_count_component(config, node, _)
 	local count
 	if node.type == "file" then
-		count = get_cache_manager().get_file_token_count(node:get_id())
+		local file_path = node:get_id()
+		local cache_manager = get_cache_manager()
+		
+		-- Check if we have a cached count
+		count = cache_manager.get_file_token_count(file_path)
+		
+		-- If no cached count and we haven't requested this file before, request it now
+		if not count or count == cache_manager.get_config().placeholder_text then
+			local instance = require("token-count.cache.instance").get_instance()
+			if not instance.neo_tree_requested[file_path] then
+				instance.neo_tree_requested[file_path] = true
+				-- Queue for background processing
+				cache_manager.count_file_background(file_path, function(result, error)
+					-- Result will be cached automatically, neo-tree will refresh on next display
+				end)
+			end
+		end
 	elseif node.type == "directory" then
-		count = get_cache_manager().get_directory_token_count(node:get_id())
+		-- No longer support directory token counting to avoid bulk processing
+		return {}
 	else
 		return {}
 	end
@@ -73,58 +90,8 @@ function M.setup(user_config)
 	-- Set up highlight group
 	vim.api.nvim_set_hl(0, "TokenCountComponent", { fg = "#98c379", default = true })
 	
-	-- Set up neotree event handlers for dynamic directory scanning
-	local events = require("neo-tree.events")
-	
-	-- Throttle directory scanning to prevent UI blocking
-	local last_scan_time = {}
-	local SCAN_THROTTLE_MS = 10000 -- 10 seconds - much more conservative
-	
-	local function should_scan_directory(dir_path)
-		local now = vim.loop.hrtime() / 1000000
-		local last_scan = last_scan_time[dir_path] or 0
-		if (now - last_scan) < SCAN_THROTTLE_MS then
-			return false
-		end
-		last_scan_time[dir_path] = now
-		return true
-	end
-	
-	events.subscribe({
-		event = "neo_tree_buffer_enter",
-		handler = function(state)
-			-- Very conservative directory scanning with long delay
-			vim.defer_fn(function()
-				if state.tree and state.tree:get_nodes() then
-					local dirs_to_scan = {}
-					for _, node in ipairs(state.tree:get_nodes()) do
-						if node.type == "directory" and node:is_expanded() and should_scan_directory(node:get_id()) then
-							table.insert(dirs_to_scan, node:get_id())
-						end
-					end
-					
-					-- Only scan a few directories at a time
-					for i = 1, math.min(2, #dirs_to_scan) do
-						vim.defer_fn(function()
-							get_cache_manager().queue_directory_files(dirs_to_scan[i], false)
-						end, i * 1000) -- 1 second between each directory
-					end
-				end
-			end, 2000) -- 2 second delay before starting
-		end,
-	})
-	
-	events.subscribe({
-		event = "neo_tree_popup_buffer_enter", 
-		handler = function(state)
-			-- Very conservative scanning when neotree opens
-			vim.defer_fn(function()
-				if state.path and should_scan_directory(state.path) then
-					get_cache_manager().queue_directory_files(state.path, false)
-				end
-			end, 3000) -- 3 second delay
-		end,
-	})
+	-- Neo-tree now uses reactive token counting - files are only processed when
+	-- they become visible and only once per session via the neo_tree_requested tracking
 end
 
 function M.get_component()

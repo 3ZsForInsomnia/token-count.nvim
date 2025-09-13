@@ -6,19 +6,15 @@ local setup = require("token-count.cache.setup")
 local api = require("token-count.cache.api")
 local management = require("token-count.cache.management")
 
--- Import individual modules for internal access
 local instance_manager = require("token-count.cache.instance")
--- Use enhanced processor for better background performance
-local processor = require("token-count.cache.processor_enhanced")
+local processor = require("token-count.cache.processor")
 local directory = require("token-count.cache.directory")
--- Use enhanced timer for better UI responsiveness
-local timer = require("token-count.cache.timer_enhanced")
+local timer = require("token-count.cache.timer")
 local notifications = require("token-count.cache.notifications")
 
 -- Export main functions from setup module
 M.setup = setup.setup
 
--- Export main functions from api module
 M.get_token_count = api.get_token_count
 M.get_file_token_count = api.get_file_token_count
 M.get_directory_token_count = api.get_directory_token_count
@@ -26,8 +22,14 @@ M.process_immediate = api.process_immediate
 M.invalidate_file = api.invalidate_file
 M.update_cache_with_count = api.update_cache_with_count
 
--- Export functions from management module
-M.queue_directory_files = management.queue_directory_files
+ M.count_file_immediate = api.count_file_immediate
+ M.count_file_background = api.count_file_background
+ 
+                 -- Export configuration access
+                 M.get_config = function()
+                 	return require("token-count.cache.instance").get_instance().config
+                 end
+                 
 M.register_update_callback = management.register_update_callback
 M.clear_cache = management.clear_cache
 M.get_stats = management.get_stats

@@ -30,36 +30,19 @@ function M.setup(user_config)
     
     -- Defer autocommands and directory queuing to avoid blocking startup
     vim.schedule(function()
-		M._setup_autocommands()
-		M._queue_initial_directory()
+		-- No longer doing proactive directory scanning
+		-- Files are processed on-demand when requested by integrations
 	end)
 end
 
---- Set up autocommands for directory change detection
 function M._setup_autocommands()
-    local augroup = vim.api.nvim_create_augroup("TokenCountCacheUnified", { clear = true })
-    
-    vim.api.nvim_create_autocmd("DirChanged", {
-        group = augroup,
-        callback = function()
-            local cwd = vim.fn.getcwd()
-            -- Lazy load directory module
-            local directory = require("token-count.cache.directory")
-            directory.queue_directory_files(cwd, false) -- Non-recursive by default
-        end,
-        desc = "Queue directory files for token counting when directory changes",
-    })
+   	-- No longer using DirChanged events for proactive scanning
+   	-- Files are processed reactively when requested by integrations
 end
 
---- Queue initial directory files
 function M._queue_initial_directory()
-    -- Only queue if we have a valid working directory
-    local cwd = vim.fn.getcwd()
-    if cwd and cwd ~= "" then
-		-- Lazy load directory module
-		local directory = require("token-count.cache.directory")
-		directory.queue_directory_files(cwd, false)
-	end
+   	-- No longer doing initial directory queuing
+   	-- Files are processed on-demand when requested
 end
 
 return M

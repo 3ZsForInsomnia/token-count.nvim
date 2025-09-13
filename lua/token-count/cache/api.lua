@@ -271,4 +271,66 @@ function M.update_cache_with_count(file_path, token_count, notify)
     require("token-count.log").info(string.format("Updated cache for %s: %s tokens", file_path, formatted))
 end
 
+--- Count tokens for a file immediately (bypasses queue)
+--- @param file_path string Path to the file
+--- @param callback function Callback function(result, error)
+function M.count_file_immediate(file_path, callback)
+	if not processor.should_process_file(file_path) then
+		callback(nil, "File not valid for processing")
+		return
+	end
+	
+	processor.process_file(file_path, function(success, result)
+		if success and result then
+			-- Update cache automatically
+			M.update_cache_with_count(file_path, result.count, true)
+			callback(result, nil)
+		else
+			callback(nil, result or "Processing failed")
+		end
+	end)
+end
+
+--- Count tokens for a file in background queue
+--- @param file_path string Path to the file
+--- @param callback function|nil Optional callback function(result, error)
+function M.count_file_background(file_path, callback)
+	local inst = instance_manager.get_instance()
+	
+	if not processor.should_process_file(file_path) then
+		if callback then callback(nil, "File not valid for processing") end
+		return
+	end
+	
+	-- Check if already processing or queued
+	if inst.processing[file_path] then
+		if callback then callback(nil, "Already processing") end
+		return
+	end
+	
+	local already_queued = false
+	for _, queued_path in ipairs(inst.process_queue) do
+		if queued_path == file_path then
+			already_queued = true
+			break
+		end
+	end
+	
+	if not already_queued then
+		table.insert(inst.process_queue, file_path)
+		timer.debounced_immediate_processing(file_path)
+	end
+	
+	-- Store callback for when processing completes
+	if callback then
+		if not inst.background_callbacks then
+			inst.background_callbacks = {}
+		end
+		if not inst.background_callbacks[file_path] then
+			inst.background_callbacks[file_path] = {}
+		end
+		table.insert(inst.background_callbacks[file_path], callback)
+	end
+end
+
 return M

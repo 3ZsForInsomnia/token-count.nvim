@@ -2,9 +2,6 @@
 
 A Neovim plugin for counting tokens in text files using various AI model tokenizers. Features background caching for optimal performance with file explorers and status lines.
 
-## Features
-
-
 ## Installation
 
 ### Prerequisites
@@ -158,7 +155,6 @@ local model_config = require("token-count").get_current_model()
 local cache = require("token-count.cache")
 
 local file_tokens = cache.get_file_token_count("/path/to/file.lua")
-local dir_tokens = cache.get_directory_token_count("/path/to/directory")
 
 cache.clear_cache()
 local stats = cache.get_stats()

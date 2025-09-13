@@ -108,7 +108,41 @@ function M.get_current_model()
 	return require("token-count.models.utils").get_model(config.model)
 end
 
---- Cleanup function to be called on plugin unload/nvim exit
+ --- Count tokens for a file immediately (bypasses queue)
+ --- @param file_path string Path to the file
+ --- @param callback function Callback function(result, error)
+ function M.count_file_immediate(file_path, callback)
+ 	ensure_initialized()
+ 	local cache_manager = require("token-count.cache")
+ 	cache_manager.count_file_immediate(file_path, callback)
+ end
+ 
+ --- Count tokens for a file in background queue
+ --- @param file_path string Path to the file
+ --- @param callback function|nil Optional callback function(result, error)
+ function M.count_file_background(file_path, callback)
+ 	ensure_initialized()
+ 	local cache_manager = require("token-count.cache")
+ 	cache_manager.count_file_background(file_path, callback)
+ end
+ 
+ --- Get cached token count for a file
+ --- @param file_path string Path to the file
+ --- @return string|nil token_display Formatted token count or nil
+ function M.get_cached_count(file_path)
+ 	ensure_initialized()
+ 	local cache_manager = require("token-count.cache")
+ 	return cache_manager.get_file_token_count(file_path)
+ end
+ 
+ --- Invalidate cache for a specific file
+ --- @param file_path string Path to the file
+ function M.invalidate_cache(file_path)
+ 	ensure_initialized()
+ 	local cache_manager = require("token-count.cache")
+ 	cache_manager.invalidate_file(file_path, false)
+ end
+ 
 function M.cleanup()
     require("token-count.log").info("Starting plugin cleanup...")
     

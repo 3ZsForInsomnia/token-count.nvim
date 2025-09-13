@@ -25,18 +25,24 @@ local function init_instance()
 		-- Queue of paths to process
 		process_queue = {},
 
+		-- Files that have been requested by neo-tree (to avoid re-requesting)
+		neo_tree_requested = {},
+
+		-- Callbacks for background processing completion
+		background_callbacks = {},
+
 		-- Configuration
 		config = {
-			interval = 3000, -- 3 seconds - optimized for background processing
+			interval = 60000, -- 1 minute - only for TTL expiration now
 			max_files_per_batch = 1, -- Always process 1 file at a time
-			cache_ttl = 300000, -- 5 minutes cache TTL in milliseconds
+			cache_ttl = 600000, -- 10 minutes cache TTL for non-buffer files
 			directory_cache_ttl = 600000, -- 10 minutes for directories
 			placeholder_text = "⋯", -- Placeholder while counting
-			enable_directory_caching = true,
+			enable_directory_caching = false, -- Disabled - only file caching now
 			enable_file_caching = true,
 			request_debounce = 500, -- 500ms debounce for better UI responsiveness
 			lazy_start = true, -- Start timer only when first request is made
-			
+
 			-- Enhanced performance settings
 			max_concurrent_processing = 2, -- Max simultaneous processing jobs
 			ui_responsiveness_check = true, -- Skip processing when UI is busy
@@ -52,7 +58,7 @@ local function init_instance()
 
 		-- Debounce timers
 		debounce_timers = {},
-		
+
 		-- Lazy initialization state
 		timer_started = false,
 	}
@@ -70,7 +76,7 @@ function M.reset_instance()
 	if instance and instance.timer then
 		instance.timer:stop()
 		instance.timer:close()
-		
+
 		-- Cleanup debounce timers
 		if instance.debounce_timers then
 			for key, timer in pairs(instance.debounce_timers) do

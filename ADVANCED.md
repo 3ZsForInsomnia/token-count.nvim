@@ -95,10 +95,10 @@ require("token-count").setup({
     enabled = true,                 -- Enable background caching
     interval = 30000,               -- Background processing interval (30s)
     max_files_per_batch = 10,       -- Process max files per cycle
-    cache_ttl = 300000,             -- File cache TTL (5 minutes)
+    cache_ttl = 600000,             -- File cache TTL (10 minutes)
     directory_cache_ttl = 600000,   -- Directory cache TTL (10 minutes)
     placeholder_text = "⋯",         -- Placeholder while processing
-    enable_directory_caching = true, -- Enable directory token counts
+    enable_directory_caching = false, -- Directory caching disabled for performance
     enable_file_caching = true,     -- Enable file token counts
     request_debounce = 100,         -- Debounce immediate requests (100ms)
   },
@@ -190,9 +190,7 @@ end
 local cache_manager = require("token-count.cache")
 
 local file_tokens = cache_manager.get_file_token_count("/path/to/file.lua")
-local dir_tokens = cache_manager.get_directory_token_count("/path/to/directory")
-
-local tokens = cache_manager.get_token_count("/path/to/item")
+-- Directory token counting disabled for performance - only files supported
 
 cache_manager.process_immediate("/path/to/file.lua", function(result)
   if result then
@@ -344,13 +342,9 @@ local cache = require("token-count.cache")
 
 -- Get token count for any file (returns immediately)
 local file_tokens = cache.get_file_token_count("/path/to/file.lua")
--- Returns: "1.2k", "⋯" (processing), or nil (not processable)
 
--- Get token count for directory (sum of all files)
-local dir_tokens = cache.get_directory_token_count("/path/to/directory")
-
--- Unified API (auto-detects file vs directory)
-local tokens = cache.get_token_count("/path/to/item")
+-- Directory token counting has been disabled for performance
+-- Only individual files are supported
 ```
 
 ### Multiple Buffer Token Counting
