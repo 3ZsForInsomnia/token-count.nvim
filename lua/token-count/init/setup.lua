@@ -17,8 +17,6 @@ local function should_defer_initialization()
 	return false
 end
 
---- Initialize the plugin environment
---- @param opts table|nil User configuration options
 function M.initialize_plugin(opts)
 	-- If we should defer initialization, set up a timer to do it later
 	if should_defer_initialization() then
@@ -27,6 +25,18 @@ function M.initialize_plugin(opts)
 		end, 100) -- 100ms delay
 		return
 	end
+	
+	-- Initialize Python availability cache early to avoid blocking calls later
+	local venv_utils = require("token-count.venv.utils")
+	venv_utils.init_python_cache()
+	
+	-- Initialize dependency caches to avoid blocking calls later
+	local dependencies = require("token-count.venv.dependencies")
+	dependencies.init_all_dependency_caches()
+	
+	-- Initialize venv status cache to avoid blocking calls later
+	local venv_setup = require("token-count.venv.setup")
+	venv_setup.init_status_cache()
 	
 	-- Log successful setup
 	local config = require("token-count.config")

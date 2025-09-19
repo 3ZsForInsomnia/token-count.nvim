@@ -9,6 +9,19 @@ function M.setup(opts)
 	local version = require("token-count.version")
 	version.initialize()
 	
+	-- Initialize Python availability cache early to avoid blocking calls later
+	-- This is safe to do in setup since it's only called once
+	local venv_utils = require("token-count.venv.utils")
+	venv_utils.init_python_cache()
+	
+	-- Initialize dependency caches to avoid blocking calls later
+	local dependencies = require("token-count.venv.dependencies")
+	dependencies.init_all_dependency_caches()
+	
+	-- Initialize venv status cache to avoid blocking calls later
+	local venv_setup = require("token-count.venv.setup")
+	venv_setup.init_status_cache()
+	
 	-- Setup configuration
 	local config = require("token-count.config")
 	config.setup(opts)

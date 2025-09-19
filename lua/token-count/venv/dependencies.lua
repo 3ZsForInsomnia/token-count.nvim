@@ -2,32 +2,67 @@ local M = {}
 
 local utils = require("token-count.venv.utils")
 
--- Lazy load cleanup system to avoid circular dependencies
+ -- Cache for dependency installation checks to avoid repeated blocking calls
+ local dependency_cache = {}
+ 
 local function get_cleanup()
 	local cleanup_ok, cleanup = pcall(require, "token-count.cleanup")
 	return cleanup_ok and cleanup or nil
 end
 --- @param dependency_name string The dependency name (tiktoken, anthropic, gemini)
---- @return boolean installed Whether the dependency is available
---- @return string|nil error Error message if check failed
-function M.is_dependency_installed(dependency_name)
+--- Internal function to actually check dependency installation (blocking)
+local function _check_dependency_impl(dependency_name)
 	if not utils.venv_exists() then
 		return false, "Virtual environment does not exist"
 	end
-
 	local dep_config = utils.DEPENDENCIES[dependency_name]
 	if not dep_config then
 		return false, "Unknown dependency: " .. dependency_name
 	end
-
 	local python_path = utils.get_python_path()
 	local check_cmd = { python_path, "-c", dep_config.import_test }
 	local result = vim.system(check_cmd, { text = true }):wait()
-
 	if result.code == 0 and result.stdout:match("OK") then
 		return true, nil
 	else
 		return false, result.stderr or "Import failed"
+	end
+end
+
+--- Initialize dependency cache for a specific dependency
+function M.init_dependency_cache(dependency_name)
+	if not dependency_cache[dependency_name] then
+		local installed, error = _check_dependency_impl(dependency_name)
+		dependency_cache[dependency_name] = {
+			checked = true,
+			installed = installed,
+			error = error
+		}
+	end
+end
+
+--- Initialize all dependency caches
+function M.init_all_dependency_caches()
+	for dep_name, _ in pairs(utils.DEPENDENCIES) do
+		M.init_dependency_cache(dep_name)
+	end
+end
+
+--- @param dependency_name string The dependency name (tiktoken, anthropic, gemini)
+--- @return boolean installed Whether the dependency is available
+--- @return string|nil error Error message if check failed
+function M.is_dependency_installed(dependency_name)
+	-- Initialize cache for this dependency if not already done
+	if not dependency_cache[dependency_name] then
+		M.init_dependency_cache(dependency_name)
+	end
+	
+	local cache_entry = dependency_cache[dependency_name]
+	if cache_entry then
+		return cache_entry.installed, cache_entry.error
+	else
+		-- Fallback if cache initialization failed
+		return false, "Cache initialization failed"
 	end
 end
 
@@ -83,6 +118,11 @@ function M.install_dependency(dependency_name, callback)
 			
 			if exit_code == 0 then
 				log.info(dep_config.display_name .. " installed successfully")
+				-- Clear cache for this dependency since it was just installed
+				M.clear_dependency_cache(dependency_name)
+				-- Clear status cache since dependency state changed
+				local venv_setup = require("token-count.venv.setup")
+				venv_setup.clear_status_cache()
 				callback(true, nil)
 			else
 				local error_msg = "Failed to install " .. dep_config.display_name .. " (exit code: " .. exit_code .. ")"

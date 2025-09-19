@@ -12,6 +12,15 @@ function M.count_tokens_async(text, model_name, callback)
 	-- Use the plugin's managed virtual environment
 	local venv = require("token-count.venv")
 
+	-- Early check: if Python is not available, fail silently to avoid error spam
+	local venv_utils = require("token-count.venv.utils")
+	local python_available, _ = venv_utils.check_python_available()
+	if not python_available then
+		-- Fail silently - don't spam errors when Python is simply not installed
+		callback(nil, "Python not available")
+		return
+	end
+
 	-- Check if venv is ready
 	local status = venv.get_status()
 	if not status.ready then
@@ -22,53 +31,28 @@ function M.count_tokens_async(text, model_name, callback)
 	local python_path = venv.get_python_path()
 	local cmd = { python_path, script_path, text }
 
-	local job_id = vim.fn.jobstart(cmd, {
-		stdout_buffered = true,
-		stderr_buffered = true,
-		on_stdout = function(_, data)
-			-- Unregister job on completion
-			local cleanup = get_cleanup()
-			if cleanup then
-				cleanup.unregister_job(job_id)
-			end
-			
-			if data and data[1] and data[1] ~= "" then
-				local token_count = tonumber(data[1])
-				if token_count then
-					callback(token_count, nil)
+	-- Use vim.system instead of jobstart to avoid fast event context issues
+	vim.system(cmd, { text = true }, function(result)
+		-- Schedule callback to avoid fast event context restrictions
+		vim.schedule(function()
+			if result.code == 0 then
+				local stdout = result.stdout and result.stdout:gsub("%s+$", "") or ""
+				if stdout ~= "" then
+					local token_count = tonumber(stdout)
+					if token_count then
+						callback(token_count, nil)
+					else
+						callback(nil, "Invalid token count returned: " .. stdout)
+					end
 				else
-					callback(nil, "Invalid token count returned: " .. data[1])
+					callback(nil, "No output from DeepSeek tokenizer")
 				end
-			end
-		end,
-		on_stderr = function(_, data)
-			if data and data[1] and data[1] ~= "" then
-				local error_msg = table.concat(data, "\n")
+			else
+				local error_msg = result.stderr and result.stderr:gsub("%s+$", "") or "Unknown error"
 				callback(nil, "DeepSeek tokenizer error: " .. error_msg)
 			end
-		end,
-		on_exit = function(_, exit_code)
-			-- Unregister job on exit
-			local cleanup = get_cleanup()
-			if cleanup then
-				cleanup.unregister_job(job_id)
-			end
-			
-			if exit_code ~= 0 then
-				callback(nil, "DeepSeek tokenizer process failed with exit code: " .. exit_code)
-			end
-		end,
-	})
-
-	if job_id <= 0 then
-		callback(nil, "Failed to start DeepSeek tokenizer job")
-	else
-		-- Register job for cleanup tracking
-		local cleanup = get_cleanup()
-		if cleanup then
-			cleanup.register_job(job_id)
-		end
-	end
+		end)
+	end)
 end
 
 --- Count tokens synchronously (blocks Neovim)
@@ -81,6 +65,13 @@ function M.count_tokens_sync(text, model_name)
 
 	-- Use the plugin's managed virtual environment
 	local venv = require("token-count.venv")
+
+	-- Early check: if Python is not available, fail quickly
+	local venv_utils = require("token-count.venv.utils")
+	local python_available, _ = venv_utils.check_python_available()
+	if not python_available then
+		return nil, "Python not available"
+	end
 
 	-- Check if venv is ready
 	local status = venv.get_status()

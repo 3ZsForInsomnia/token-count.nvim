@@ -137,7 +137,12 @@ function M.process_file(file_path, callback)
     end
     
     -- Check if file is in active/visible buffer
-    local is_active = is_file_in_active_buffer(file_path)
+    local is_active = false
+    -- Safely check if file is active, defaulting to false if in fast event context
+    local ok, result = pcall(is_file_in_active_buffer, file_path)
+    if ok then
+        is_active = result
+    end
     
     -- Check resource constraints (skip size check for active buffers)
     local should_process, reason = M.should_process_file(file_path, is_active)

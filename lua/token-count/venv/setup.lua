@@ -5,6 +5,12 @@ local utils = require("token-count.venv.utils")
 local manager = require("token-count.venv.manager")
 local dependencies = require("token-count.venv.dependencies")
 
+-- Cache for venv status to avoid repeated system calls in fast event contexts
+local status_cache = {
+	checked = false,
+	status = nil
+}
+
 function M.setup_venv(callback)
 	callback = callback or function() end
 
@@ -36,7 +42,9 @@ function M.setup_venv(callback)
 	end
 end
 
-function M.get_status()
+--- Internal function to actually compute status (may contain blocking calls)
+--- This should only be called once during plugin initialization
+local function _get_status_impl()
 	local python_available, python_info = utils.check_python_available()
 	local venv_exists = utils.venv_exists()
 	local tiktoken_installed, tiktoken_error = dependencies.is_dependency_installed("tiktoken")
@@ -72,6 +80,30 @@ function M.get_status()
 		-- Overall readiness
 		ready = python_available and venv_exists and tokencost_installed,
 	}
+end
+
+--- Initialize the status cache
+--- This should be called once during plugin startup
+function M.init_status_cache()
+	if not status_cache.checked then
+		status_cache.status = _get_status_impl()
+		status_cache.checked = true
+	end
+end
+
+--- Clear the status cache (useful after installations or changes)
+function M.clear_status_cache()
+	status_cache.checked = false
+	status_cache.status = nil
+end
+
+function M.get_status()
+	-- Initialize cache if not already done (fallback for cases where init wasn't called)
+	if not status_cache.checked then
+		M.init_status_cache()
+	end
+	
+	return status_cache.status
 end
 
 return M

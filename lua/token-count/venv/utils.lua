@@ -1,5 +1,12 @@
---- Configuration and utilities for virtual environment management
 local M = {}
+
+-- Cache for Python availability check to avoid repeated blocking calls
+local python_cache = {
+	checked = false,
+	available = false,
+	version = nil,
+	error = nil,
+}
 
 M.DEPENDENCIES = {
 	tiktoken = {
@@ -54,10 +61,11 @@ function M.venv_exists()
 	return vim.fn.filereadable(python_path) == 1
 end
 
---- Check if Python 3 is available on the system
+--- Internal function to actually check Python availability (blocking)
+--- This should only be called once during plugin initialization
 --- @return boolean available Whether Python 3 is available
---- @return string|nil error Error message if not available
-function M.check_python_available()
+--- @return string|nil version_or_error Version string if available, error message if not
+local function _check_python_available_impl()
 	local python_cmd = { "python3", "--version" }
 	local result = vim.system(python_cmd, { text = true }):wait()
 
@@ -78,16 +86,51 @@ function M.check_python_available()
 	end
 end
 
+--- Initialize the Python availability cache
+--- This should be called once during plugin startup
+function M.init_python_cache()
+	if not python_cache.checked then
+		local available, version_or_error = _check_python_available_impl()
+		python_cache.checked = true
+		python_cache.available = available
+		if available then
+			python_cache.version = version_or_error
+			python_cache.error = nil
+		else
+			python_cache.version = nil
+			python_cache.error = version_or_error
+		end
+	end
+end
+
+function M.check_python_available()
+	-- Initialize cache if not already done (fallback for cases where init wasn't called)
+	if not python_cache.checked then
+		M.init_python_cache()
+	end
+
+	if python_cache.available then
+		return true, python_cache.version
+	else
+		return false, python_cache.error
+	end
+end
+
+function M.clear_python_cache()
+	python_cache.checked = false
+	python_cache.available = false
+	python_cache.version = nil
+	python_cache.error = nil
+end
+
 --- Check if provider API keys are configured
 --- @return table api_status Status of API key configuration for each provider
 function M.check_api_keys()
 	return {
-		anthropic = vim.fn.getenv("ANTHROPIC_API_KEY") ~= vim.NIL
-			and vim.fn.getenv("ANTHROPIC_API_KEY") ~= ""
-			and vim.fn.getenv("ANTHROPIC_API_KEY") ~= nil,
-		gemini = vim.fn.getenv("GOOGLE_API_KEY") ~= vim.NIL
-			and vim.fn.getenv("GOOGLE_API_KEY") ~= ""
-			and vim.fn.getenv("GOOGLE_API_KEY") ~= nil,
+		anthropic = vim.env.ANTHROPIC_API_KEY ~= nil
+			and vim.env.ANTHROPIC_API_KEY ~= "",
+		gemini = vim.env.GOOGLE_API_KEY ~= nil
+			and vim.env.GOOGLE_API_KEY ~= "",
 	}
 end
 

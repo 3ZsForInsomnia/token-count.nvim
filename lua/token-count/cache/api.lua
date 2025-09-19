@@ -80,7 +80,13 @@ end
 function M._handle_file_request(inst, path)
     -- If not cached and not being processed, queue it
     -- Check if it's an active buffer to skip size limits
-    local is_active = M._is_file_in_active_buffer(path)
+    local is_active = false
+    -- Safely check if file is active, defaulting to false if in fast event context
+    local ok, result = pcall(M._is_file_in_active_buffer, path)
+    if ok then
+        is_active = result
+    end
+    
     local should_process, _ = processor.should_process_file(path, is_active)
     
     if not inst.processing[path] and should_process then

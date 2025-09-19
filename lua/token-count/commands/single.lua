@@ -8,19 +8,22 @@ function M.count_current_buffer()
 	local cache_manager = require("token-count.cache")
 
 	buffer.count_current_buffer_async(function(result, error)
-		if error then
-			vim.notify("Token counting failed: " .. error, vim.log.levels.ERROR)
-		else
-			ui.notify_token_count_result(result)
+		-- Schedule to avoid fast event context restrictions
+		vim.schedule(function()
+			if error then
+				vim.notify("Token counting failed: " .. error, vim.log.levels.ERROR)
+			else
+				ui.notify_token_count_result(result)
 
-			require("token-count.log").info("Token count result: " .. formatting.format_result_json(result))
-			
-			-- Update cache with the new token count
-			local current_file = vim.api.nvim_buf_get_name(result.buffer_id)
-			if current_file and current_file ~= "" then
-				cache_manager.update_cache_with_count(current_file, result.token_count)
+				require("token-count.log").info("Token count result: " .. formatting.format_result_json(result))
+				
+				-- Update cache with the new token count
+				local current_file = vim.api.nvim_buf_get_name(result.buffer_id)
+				if current_file and current_file ~= "" then
+					cache_manager.update_cache_with_count(current_file, result.token_count)
+				end
 			end
-		end
+		end)
 	end)
 end
 

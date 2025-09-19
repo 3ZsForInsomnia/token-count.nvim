@@ -18,6 +18,17 @@ end
 --- @param model_config table Model configuration
 --- @param callback function Callback that receives (total_tokens, buffer_results, error)
 function M.count_multiple_buffers_async(buffer_ids, model_config, callback)
+	-- Schedule to avoid fast event context restrictions for nvim API calls
+	vim.schedule(function()
+		M._count_multiple_buffers_impl(buffer_ids, model_config, callback)
+	end)
+end
+
+--- Internal implementation for counting multiple buffers
+--- @param buffer_ids number[] Array of buffer IDs
+--- @param model_config table Model configuration
+--- @param callback function Callback that receives (total_tokens, buffer_results, error)
+function M._count_multiple_buffers_impl(buffer_ids, model_config, callback)
 	local buffer = require("token-count.buffer")
 	local models = require("token-count.models.utils")
 

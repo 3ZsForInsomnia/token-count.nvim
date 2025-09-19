@@ -96,7 +96,7 @@ function M.notify_model_change(previous_model, new_model, model_config)
 		context_window = model_config.context_window,
 	}
 
-	vim.notify("Model changed: " .. vim.fn.json_encode(result), vim.log.levels.INFO)
+	vim.notify("Model changed: " .. vim.json.encode(result), vim.log.levels.INFO)
 end
 
 return M

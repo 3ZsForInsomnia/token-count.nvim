@@ -34,7 +34,7 @@ function M.format_result_json(result)
         buffer_id = result.buffer_id
     }
     
-    return vim.fn.json_encode(json)
+    return vim.json.encode(json)
 end
 
 function M.format_percentage(percentage, decimals)
