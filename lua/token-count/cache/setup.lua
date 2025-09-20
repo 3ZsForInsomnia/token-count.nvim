@@ -19,19 +19,14 @@ function M.setup(user_config)
         inst.config = vim.tbl_deep_extend("force", inst.config, user_config)
     end
     
-    -- Only start timer if caching is actually enabled
+    -- Start background processing timer
     if inst.config.enable_file_caching or inst.config.enable_directory_caching then
-		-- Don't start timer immediately if lazy_start is enabled
-		if not inst.config.lazy_start then
-			local timer = require("token-count.cache.timer")
-			timer.start_timer()
-		end
+		local timer = require("token-count.cache.timer")
+		timer.start_timer()
 	end
     
-    -- Defer autocommands and directory queuing to avoid blocking startup
+    -- Complete setup in next tick
     vim.schedule(function()
-		-- No longer doing proactive directory scanning
-		-- Files are processed on-demand when requested by integrations
 	end)
 end
 

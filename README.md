@@ -55,11 +55,54 @@ require("token-count").setup({
   log_level = "warn",               -- Logging verbosity
   context_warning_threshold = 0.4,  -- Warn at 40% context usage
   
+  -- Ignore patterns for background processing (Lua patterns)
+  ignore_patterns = {
+    "node_modules/.*",   -- Node.js dependencies
+    "%.git/.*",          -- Git repository files
+    "%.svn/.*",          -- SVN files
+    "build/.*",          -- Build directories
+    "dist/.*",           -- Distribution directories
+    "target/.*",         -- Build target directories
+    "vendor/.*",         -- Vendor dependencies
+    "%.DS_Store",        -- macOS system files
+    "%.vscode/.*",       -- VS Code settings
+    "%.idea/.*",         -- IntelliJ settings
+  },
+  
   -- Optional: Enable official API token counting (requires API keys)
   enable_official_anthropic_counter = false, -- Requires ANTHROPIC_API_KEY
   enable_official_gemini_counter = false,    -- Requires GOOGLE_API_KEY
 })
 ```
+
+## File Handling
+
+### Supported File Types
+
+The plugin automatically detects and processes a wide variety of text-based files including:
+
+- **Programming languages**: JavaScript, TypeScript, Python, Go, Rust, Java, C/C++, Lua, Ruby, PHP, Swift, Kotlin, and many more
+- **Web technologies**: HTML, CSS, SCSS, Vue, Svelte, JSON, XML
+- **Documentation**: Markdown, reStructuredText, LaTeX, plain text
+- **Configuration**: YAML, TOML, INI, environment files
+- **Data formats**: CSV, SQL, GraphQL
+- **Infrastructure**: Dockerfile, Terraform, Kubernetes YAML
+
+### File Size Limits
+
+- **Files under 512KB**: Full token counting
+- **Files over 512KB**: Displayed as "LARGE" to indicate the file exceeds processing limits
+- **Performance**: Background processing uses parallel execution for optimal speed
+
+### Ignore Patterns
+
+The plugin automatically skips common directories and files that shouldn't be processed:
+
+- `node_modules`, `.git`, `build`, `dist`, `target` directories
+- System files like `.DS_Store`
+- IDE configuration directories
+
+You can customize ignore patterns in your configuration (see Configuration section above).
 
 ## Supported Models
 

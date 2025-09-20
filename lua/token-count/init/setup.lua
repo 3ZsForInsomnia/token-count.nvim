@@ -1,31 +1,6 @@
 local M = {}
---- Check if we should defer heavy initialization
---- @return boolean should_defer Whether to defer initialization
-local function should_defer_initialization()
-	-- Check if we're in a lazy-loading environment or startup
-	-- Defer if we're in the startup process
-	if vim.v.vim_did_enter == 0 then
-		return true
-	end
-	
-	-- Check if this might be called from a plugin manager during lazy loading
-	local info = debug.getinfo(3, "S")
-	if info and info.source and (info.source:match("lazy") or info.source:match("packer")) then
-		return true
-	end
-	
-	return false
-end
 
 function M.initialize_plugin(opts)
-	-- If we should defer initialization, set up a timer to do it later
-	if should_defer_initialization() then
-		vim.defer_fn(function()
-			M.initialize_plugin(opts)
-		end, 100) -- 100ms delay
-		return
-	end
-	
 	-- Initialize Python availability cache early to avoid blocking calls later
 	local venv_utils = require("token-count.venv.utils")
 	venv_utils.init_python_cache()

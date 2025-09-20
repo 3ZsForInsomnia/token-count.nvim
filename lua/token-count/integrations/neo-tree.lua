@@ -41,7 +41,7 @@ local function token_count_component(config, node, _)
 			end
 		end
 	elseif node.type == "directory" then
-		-- No longer support directory token counting to avoid bulk processing
+		-- Directory token counting not supported
 		return {}
 	else
 		return {}
@@ -89,9 +89,6 @@ function M.setup(user_config)
 
 	-- Set up highlight group
 	vim.api.nvim_set_hl(0, "TokenCountComponent", { fg = "#98c379", default = true })
-	
-	-- Neo-tree now uses reactive token counting - files are only processed when
-	-- they become visible and only once per session via the neo_tree_requested tracking
 end
 
 function M.get_component()

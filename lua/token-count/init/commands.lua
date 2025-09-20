@@ -77,6 +77,7 @@ function M.create_commands()
 	end, {
 		desc = "Manually clean up token-count plugin resources",
 	})
+
 end
 
 --- Create virtual environment management commands

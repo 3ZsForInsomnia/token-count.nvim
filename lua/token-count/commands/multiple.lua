@@ -1,7 +1,43 @@
---- Multiple buffer operations
 local M = {}
 
---- Handle completion of all buffer token counting
+ --- Parse formatted token count back to approximate number
+ --- @param formatted_count string Formatted count like "1.2k", "500", "LARGE"
+ --- @return number|nil Approximate token count
+ function M._parse_formatted_count(formatted_count)
+ 	if not formatted_count or formatted_count == "" then
+ 		return nil
+ 	end
+ 	
+ 	-- Handle special cases
+ 	if formatted_count == "LARGE" then
+ 		return 999999
+ 	end
+ 	if formatted_count:match("~$") then
+ 		-- Remove tilde and parse the number part
+ 		formatted_count = formatted_count:gsub("~$", "")
+ 	end
+ 	
+ 	-- Handle "k" suffix (e.g., "1.2k" -> 1200)
+ 	local k_match = formatted_count:match("^([%d%.]+)k$")
+ 	if k_match then
+ 		return math.floor(tonumber(k_match) * 1000)
+ 	end
+ 	
+ 	-- Handle "M" suffix (e.g., "1.5M" -> 1500000)
+ 	local m_match = formatted_count:match("^([%d%.]+)M$")
+ 	if m_match then
+ 		return math.floor(tonumber(m_match) * 1000000)
+ 	end
+ 	
+ 	-- Handle plain numbers
+ 	local number = tonumber(formatted_count)
+ 	if number then
+ 		return number
+ 	end
+ 	
+ 	return nil
+ end
+ 
 --- @param total_tokens number Total tokens across all buffers
 --- @param buffer_results table[] Results for each buffer
 --- @param model_config table Model configuration
@@ -54,33 +90,44 @@ function M.count_all_buffers()
 		return
 	end
 
-	buffer_ops.count_multiple_buffers_async(valid_buffers, model_config, function(total_tokens, buffer_results, error)
-		-- Schedule to avoid fast event context restrictions
-		vim.schedule(function()
-			if error then
-				vim.notify("Token counting failed: " .. error, vim.log.levels.ERROR)
-			else
-				handle_all_buffers_completion(total_tokens, buffer_results, model_config)
-				
-				-- Update cache for all processed buffers
-				local updated_files = 0
-				
-				for _, result in ipairs(buffer_results) do
-					local buffer_name = vim.api.nvim_buf_get_name(result.buffer_id)
-					if buffer_name and buffer_name ~= "" then
-						cache_manager.update_cache_with_count(buffer_name, result.token_count, false) -- Don't notify for each file
-						updated_files = updated_files + 1
-					end
-				end
-				
-				if updated_files > 0 then
-					require("token-count.log").info("Updated cache for " .. updated_files .. " buffers")
-					-- Send a single notification for all updates
-					vim.cmd("redraw") -- Refresh UI components like neo-tree
-				end
+	-- Use cached values for fast summary
+	local buffer_results = {}
+	local total_tokens = 0
+	local cached_files = 0
+	
+	for _, buffer_id in ipairs(valid_buffers) do
+		local buffer_name = vim.api.nvim_buf_get_name(buffer_id)
+		local token_count = 0
+		
+		if buffer_name and buffer_name ~= "" then
+			-- Try to get cached token count
+			local cached_count = cache_manager.get_file_token_count(buffer_name)
+			if cached_count and cached_count ~= cache_manager.get_config().placeholder_text then
+				-- Parse the formatted count back to number (e.g., "1.2k" -> 1200)
+				token_count = M._parse_formatted_count(cached_count) or 0
+				cached_files = cached_files + 1
 			end
-		end)
-	end)
+		end
+		
+		table.insert(buffer_results, {
+			buffer_id = buffer_id,
+			token_count = token_count,
+		})
+		
+		total_tokens = total_tokens + token_count
+	end
+	
+	-- Show immediate results using cached values
+	handle_all_buffers_completion(total_tokens, buffer_results, model_config)
+	
+	require("token-count.log").info(
+		string.format(
+			"All buffers summary from cache: %d tokens (%d/%d files cached)",
+			total_tokens,
+			cached_files,
+			#valid_buffers
+		)
+	)
 end
 
 return M

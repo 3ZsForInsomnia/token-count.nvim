@@ -11,23 +11,12 @@
 
 local M = {}
 
-local initialized = false
-
-local function ensure_initialized()
-	if not initialized then
-		M.init()
-		initialized = true
-	end
-end
-
---- Get cache manager (lazy loaded)
+--- Get cache manager - assumes token-count is properly set up
 local function get_cache_manager()
 	return require("token-count.cache")
 end
 
 local function get_current_buffer_display()
-	ensure_initialized()
-
 	local current_buf = vim.api.nvim_get_current_buf()
 
 	-- Don't count during UI operations that might be sensitive
@@ -43,10 +32,7 @@ local function get_current_buffer_display()
 	end
 
 	-- Double-check buffer validity at display time
-	local buffer_ok, buffer = pcall(require, "token-count.buffer")
-	if not buffer_ok then
-		return ""
-	end
+	local buffer = require("token-count.buffer")
 
 	local _, valid = buffer.get_current_buffer_if_valid()
 	if not valid then
@@ -62,7 +48,7 @@ local function get_current_buffer_display()
 	-- Request token count from unified cache
 	local cache_manager = get_cache_manager()
 	local count = cache_manager.get_file_token_count(buffer_path)
-	if count and count ~= cache_manager.get_config().placeholder_text then
+	if count then
 		return "🪙 " .. count
 	else
 		return ""
@@ -72,8 +58,6 @@ end
 --- Get all buffers token count display (simplified)
 --- @return string display_text Text to show in lualine
 local function get_all_buffers_display()
-	ensure_initialized()
-
 	-- Don't count during UI operations that might be sensitive
 	local mode = vim.fn.mode()
 	if mode == "c" then -- Command-line mode
@@ -87,10 +71,7 @@ local function get_all_buffers_display()
 	end
 
 	-- Get valid buffers count
-	local buffer_ops_ok, buffer_ops = pcall(require, "token-count.utils.buffer_ops")
-	if not buffer_ops_ok then
-		return ""
-	end
+	local buffer_ops = require("token-count.utils.buffer_ops")
 
 	local valid_buffers = buffer_ops.get_valid_buffers()
 	if #valid_buffers == 0 then
@@ -100,26 +81,6 @@ local function get_all_buffers_display()
 	return string.format("🪙 %d buffers", #valid_buffers)
 end
 
-function M.init()
-	local cache_manager = get_cache_manager()
-
-	-- Register callback for cache updates to trigger lualine refresh
-	cache_manager.register_update_callback(function(path, path_type)
-		-- Cache updates automatically trigger lualine refresh via the unified cache
-		-- No additional action needed since we're using the unified cache directly
-	end)
-
-	-- Set up buffer change detection for current buffer invalidation
-	local augroup = vim.api.nvim_create_augroup("TokenCountLualine", { clear = true })
-
-	-- Register autocommand group for cleanup tracking
-	local cleanup_ok, cleanup = pcall(require, "token-count.cleanup")
-	if cleanup_ok then
-		cleanup.register_autocommand_group(augroup, "token_count_lualine")
-	end
-
-end
-
 --- Lualine component for current buffer token count
 M.current_buffer = {
 	function()
@@ -127,10 +88,7 @@ M.current_buffer = {
 	end,
 	cond = function()
 		-- Only show if buffer is valid for token counting
-		local buffer_ok, buffer = pcall(require, "token-count.buffer")
-		if not buffer_ok then
-			return false
-		end
+		local buffer = require("token-count.buffer")
 
 		local _, valid = buffer.get_current_buffer_if_valid()
 		return valid
@@ -145,10 +103,7 @@ M.all_buffers = {
 	end,
 	cond = function()
 		-- Only show if plugin is loaded and there are valid buffers
-		local buffer_ops_ok, buffer_ops = pcall(require, "token-count.utils.buffer_ops")
-		if not buffer_ops_ok then
-			return false
-		end
+		local buffer_ops = require("token-count.utils.buffer_ops")
 
 		local valid_buffers = buffer_ops.get_valid_buffers()
 		return #valid_buffers > 0

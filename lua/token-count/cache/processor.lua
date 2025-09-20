@@ -1,27 +1,9 @@
---- Enhanced background processing with better resource management
 local M = {}
 
 local log = require("token-count.log")
 
--- Resource limits to prevent UI blocking
-local RESOURCE_LIMITS = {
-    MAX_CONCURRENT_JOBS = 3,        -- Max simultaneous processing jobs
-    MAX_FILE_SIZE_BYTES = 1024 * 512,  -- 512KB max file size (was 1MB)
-    PROCESSING_BATCH_SIZE = 1,      -- Process 1 file at a time (keep ultra-conservative)
-    YIELD_FREQUENCY = 5,            -- Yield control every N operations
-    MEMORY_CHECK_INTERVAL = 100,    -- Check memory usage every N files
-    MAX_QUEUE_SIZE = 50,           -- Maximum number of files in queue
-}
-
--- Global state for resource management
-local processing_stats = {
-    active_jobs = 0,
-    processed_files = 0,
-    last_memory_check = 0,
-    last_yield = 0,
-}
-
---- Check if file is in an active or visible buffer
+ local processing_stats = { active_jobs = 0, last_yield = 0 }
+ 
 --- @param file_path string File path to check
 --- @return boolean is_active Whether file is in active/visible buffer
 local function is_file_in_active_buffer(file_path)
@@ -49,14 +31,18 @@ local function is_file_in_active_buffer(file_path)
     return false
 end
 
---- Check if we should process this file based on resource constraints
---- @param file_path string File path to check
---- @return boolean should_process Whether to process this file
---- @return string? reason Reason if not processing
 function M.should_process_file(file_path, skip_size_check)
     -- Original file validation checks
     if not file_path or file_path == "" then
         return false, "empty_path"
+    end
+
+    -- Check ignore patterns
+    local config = require("token-count.config").get()
+    for _, pattern in ipairs(config.ignore_patterns or {}) do
+        if file_path:match(pattern) then
+            return false, "ignored_pattern"
+        end
     end
 
     local filename = file_path:match("([^/]+)$") or ""
@@ -70,25 +56,19 @@ function M.should_process_file(file_path, skip_size_check)
     end
     
     local valid_extensions = {
-        lua = true, py = true, js = true, ts = true, java = true, c = true, cpp = true, 
-        rs = true, go = true, rb = true, php = true, swift = true, kt = true, scala = true,
-        clj = true, hs = true, vim = true, sh = true, zsh = true, fish = true, ps1 = true,
-        html = true, css = true, scss = true, sass = true, less = true, vue = true, 
-        svelte = true, jsx = true, tsx = true, json = true, xml = true, yaml = true, 
-        yml = true, toml = true,
-        md = true, txt = true, rst = true, org = true, tex = true, latex = true,
-        conf = true, config = true, ini = true, cfg = true, properties = true,
-        csv = true, tsv = true, sql = true, graphql = true, proto = true,
-        log = true, diff = true, patch = true,
+        "lua", "py", "js", "ts", "tsx", "jsx", "java", "c", "cpp", "go", "rs", "rb", "php", 
+        "swift", "kt", "scala", "clj", "hs", "vim", "sh", "zsh", "fish", "ps1",
+        "html", "css", "scss", "sass", "less", "vue", "svelte", "json", "xml", "yaml", "yml", "toml",
+        "md", "txt", "rst", "org", "tex", "conf", "ini", "cfg", "csv", "sql", "diff", "patch"
     }
     
-    if not valid_extensions[ext:lower()] then
-        return false, "invalid_extension"
+    local ext_set = {}
+    for _, valid_ext in ipairs(valid_extensions) do
+        ext_set[valid_ext] = true
     end
-
-    -- Resource constraint checks
-    if processing_stats.active_jobs >= RESOURCE_LIMITS.MAX_CONCURRENT_JOBS then
-        return false, "max_concurrent_jobs"
+    
+    if not ext_set[ext:lower()] then
+        return false, "invalid_extension"
     end
 
     local stat = vim.loop.fs_stat(file_path)
@@ -96,8 +76,7 @@ function M.should_process_file(file_path, skip_size_check)
         return false, "not_file"
     end
     
-    -- Skip size check for active/visible buffers or if explicitly requested
-    if not skip_size_check and stat.size > RESOURCE_LIMITS.MAX_FILE_SIZE_BYTES then
+    if not skip_size_check and stat.size > 512 * 1024 then
         return false, "file_too_large"
     end
 
@@ -124,8 +103,25 @@ function M.format_token_count(count)
     return tostring(count)
 end
 
---- Process file with enhanced background operation
---- @param file_path string File path to process
+ --- Handle files that exceed size limit
+ --- @param file_path string File path
+ --- @param instance table Cache instance
+ --- @param callback function Callback function
+ function M._handle_oversized_file(file_path, instance, callback)
+     -- Return "LARGE" for oversized files to make it more obvious
+     local formatted = "LARGE"
+     instance.cache[file_path] = {
+         count = 999999, -- High count to indicate large file
+         formatted = formatted,
+         timestamp = vim.loop.hrtime() / 1000000,
+         status = "oversized",
+         type = "file"
+     }
+    
+    log.info(string.format("File %s exceeds 512KB limit, showing as %s", file_path, formatted))
+    callback(true, {count = 999999, formatted = formatted})
+end
+ 
 --- @param callback function Callback function
 function M.process_file(file_path, callback)
     local instance = require("token-count.cache.instance").get_instance()
@@ -148,8 +144,8 @@ function M.process_file(file_path, callback)
     local should_process, reason = M.should_process_file(file_path, is_active)
     if not should_process then
         if reason == "file_too_large" then
-            -- Provide estimate for large files not in active buffers
-            M._handle_large_file(file_path, callback)
+            -- Handle oversized files with "LARGE" display
+            M._handle_oversized_file(file_path, instance, callback)
             return
         else
             callback(false, "Skipped: " .. (reason or "unknown"))
@@ -184,53 +180,6 @@ function M.process_file(file_path, callback)
     end)
 end
 
---- Handle large files with estimation
---- @param file_path string File path
---- @param callback function Callback function
-function M._handle_large_file(file_path, callback)
-    local instance = require("token-count.cache.instance").get_instance()
-    
-    -- Read just the first 1KB to estimate
-    vim.loop.fs_open(file_path, "r", 438, function(err, fd)
-        if err or not fd then
-            callback(false, "Cannot open large file")
-            return
-        end
-        
-        vim.loop.fs_read(fd, 1024, 0, function(read_err, content)
-            vim.loop.fs_close(fd, function() end)
-            
-            if read_err or not content then
-                callback(false, "Cannot read large file sample")
-                return
-            end
-            
-            -- Estimate based on sample
-            local errors = require("token-count.utils.errors")
-            local estimate, method = errors.get_fallback_estimate(content)
-            
-            -- Scale estimate based on file size
-            local stat = vim.loop.fs_stat(file_path)
-            if stat then
-                local scale_factor = stat.size / 1024
-                estimate = math.floor(estimate * scale_factor)
-            end
-            
-            local formatted = M.format_token_count(estimate)
-            instance.cache[file_path] = {
-                count = estimate,
-                formatted = formatted .. "*", -- Add asterisk to indicate estimate
-                timestamp = vim.loop.hrtime() / 1000000,
-                status = "estimated",
-                type = "file"
-            }
-            
-            callback(true, {count = estimate, formatted = formatted .. "*"})
-        end)
-    end)
-end
-
---- Read file in chunks to prevent memory issues
 --- @param file_path string File path
 --- @param is_active_buffer boolean Whether file is in active/visible buffer
 --- @param callback function Callback function(success, content, error)
@@ -248,21 +197,12 @@ function M._read_file_chunked(file_path, is_active_buffer, callback)
                 return
             end
             
-            -- Check size limits only for non-active buffers
-            if not is_active_buffer and stat.size > RESOURCE_LIMITS.MAX_FILE_SIZE_BYTES then
+            -- Check size limits for all files (simplified approach)
+            if stat.size > 512 * 1024 then
                 vim.loop.fs_close(fd, function() end)
                 callback(false, nil, "File too large")
                 return
             end
-        
-        -- For very large active buffer files (>10MB), warn but still process
-        if is_active_buffer and stat.size > 10 * 1024 * 1024 then
-            require("token-count.log").warn(string.format(
-                "Processing very large active file: %s (%.1fMB)", 
-                file_path, 
-                stat.size / (1024 * 1024)
-            ))
-        end
             
             vim.loop.fs_read(fd, stat.size, 0, function(read_err, content)
                 vim.loop.fs_close(fd, function() end)
@@ -294,17 +234,8 @@ end
 --- Maybe yield control to prevent UI blocking
 --- @param next_fn function Function to call after yield
 function M._maybe_yield(next_fn)
-    processing_stats.last_yield = processing_stats.last_yield + 1
-    
-    if processing_stats.last_yield >= RESOURCE_LIMITS.YIELD_FREQUENCY then
-        processing_stats.last_yield = 0
-        -- Use vim.schedule to yield control back to UI
-        vim.schedule(function()
-            next_fn()
-        end)
-    else
-        next_fn()
-    end
+    -- Simplified - just call directly
+    next_fn()
 end
 
 --- Process file content with background-friendly approach
@@ -314,38 +245,20 @@ end
 function M._process_content_background(file_path, content, callback)
     local instance = require("token-count.cache.instance").get_instance()
     
-    -- Get model and provider with error handling
-    local models_ok, models = pcall(require, "token-count.models.utils")
-    local config_module_ok, config_module = pcall(require, "token-count.config")
-        
-    if not (models_ok and config_module_ok) then
-        callback(false, "Missing dependencies")
-        return
-    end
-        
+    -- Get model and provider
+    local models = require("token-count.models.utils")
+    local config_module = require("token-count.config")
     local current_config = config_module.get()
     local model_config = models.get_model(current_config.model)
+    
     if not model_config then
         callback(false, "Invalid model config")
         return
     end
-        
+    
     local provider = models.get_provider_handler(model_config.provider)
     if not provider then
-        -- Use fallback estimation instead of failing
-        local errors = require("token-count.utils.errors")
-        local estimate, method = errors.get_fallback_estimate(content)
-        local formatted = M.format_token_count(estimate)
-        
-        instance.cache[file_path] = {
-            count = estimate,
-            formatted = formatted .. "~", -- Add tilde to indicate fallback
-            timestamp = vim.loop.hrtime() / 1000000,
-            status = "estimated",
-            type = "file"
-        }
-        
-        callback(true, {count = estimate, formatted = formatted .. "~"})
+        callback(false, "Provider not available")
         return
     end
         
@@ -361,6 +274,10 @@ function M._process_content_background(file_path, content, callback)
                 type = "file"
             }
             
+            -- Trigger UI updates immediately
+            local notifications = require("token-count.cache.notifications")
+            notifications.notify_cache_updated(file_path, "file")
+            
             -- Call any background callbacks waiting for this file
             if instance.background_callbacks and instance.background_callbacks[file_path] then
                 for _, bg_callback in ipairs(instance.background_callbacks[file_path]) do
@@ -371,7 +288,8 @@ function M._process_content_background(file_path, content, callback)
             
             callback(true, {count = count, formatted = formatted})
         else
-            -- Use fallback estimation on provider error
+            log.warn(string.format("Provider failed for %s: %s", file_path, error or "unknown error"))
+            
             local errors = require("token-count.utils.errors")
             local estimate, method = errors.get_fallback_estimate(content)
             local formatted = M.format_token_count(estimate)
@@ -384,6 +302,10 @@ function M._process_content_background(file_path, content, callback)
                 type = "file"
             }
             
+            -- Trigger UI updates for estimated results too
+            local notifications = require("token-count.cache.notifications")
+            notifications.notify_cache_updated(file_path, "file")
+            
             -- Call any background callbacks with estimated result
             if instance.background_callbacks and instance.background_callbacks[file_path] then
                 for _, bg_callback in ipairs(instance.background_callbacks[file_path]) do
@@ -392,7 +314,6 @@ function M._process_content_background(file_path, content, callback)
                 instance.background_callbacks[file_path] = nil
             end
             
-            log.warn(string.format("Provider failed for %s, using estimate: %s", file_path, error or "unknown error"))
             callback(true, {count = estimate, formatted = formatted .. "~"})
         end
     end)

@@ -2,73 +2,64 @@ local M = {}
 
 -- Plugin state
 local _setup_complete = false
-local _deferred_setup = nil
 
 function M.setup(opts)
-	-- Check system compatibility first
+	-- Initialize system components
 	local version = require("token-count.version")
 	version.initialize()
 	
-	-- Initialize Python availability cache early to avoid blocking calls later
-	-- This is safe to do in setup since it's only called once
+	require("token-count.log").setup_log_rotation()
+	
+	-- Cache Python environment info to avoid blocking calls later
 	local venv_utils = require("token-count.venv.utils")
 	venv_utils.init_python_cache()
 	
-	-- Initialize dependency caches to avoid blocking calls later
 	local dependencies = require("token-count.venv.dependencies")
 	dependencies.init_all_dependency_caches()
 	
-	-- Initialize venv status cache to avoid blocking calls later
 	local venv_setup = require("token-count.venv.setup")
 	venv_setup.init_status_cache()
 	
-	-- Setup configuration
 	local config = require("token-count.config")
 	config.setup(opts)
 
-	-- Create user commands (lazy loading on execution)
+	-- Setup commands and autocommands
 	require("token-count.init.commands").create_commands()
 	require("token-count.init.commands").create_venv_commands()
 
-	-- Store options for deferred setup
-	_deferred_setup = opts
-	_setup_complete = true
+
+	local current_config = config.get()
 	
-	-- Defer heavy initialization until first actual use
-	-- This allows the plugin to load fast but initialize properly when needed
+	if current_config.cache and current_config.cache.enabled then
+		local cache_manager = require("token-count.cache")
+		cache_manager.setup(current_config.cache)
+		
+		-- Register lualine refresh callback
+		cache_manager.register_update_callback(function(path, path_type)
+			vim.schedule(function()
+				if vim.g.loaded_lualine then
+					require('lualine').refresh()
+				end
+			end)
+		end)
+	end
+	
+	require("token-count.init.setup").initialize_plugin(opts)
+	
+	require("token-count.init.events").setup_autocommands()
+	
+	local cleanup_ok, cleanup = pcall(require, "token-count.cleanup")
+	if cleanup_ok then
+		cleanup.initialize()
+	end
+	
+	_setup_complete = true
 end
 
---- Ensure full plugin initialization (called on first real use)
+--- Ensure plugin is initialized (simplified check)
 local function ensure_initialized()
 	if not _setup_complete then
 		error("Plugin not setup - call require('token-count').setup() first")
-	end
-	
-	-- Only run deferred setup once
-	if _deferred_setup ~= nil then
-		local opts = _deferred_setup
-		_deferred_setup = nil -- Mark as completed
-		
-		-- Now do the heavy initialization
-		local config = require("token-count.config").get()
-		
-		-- Initialize cache manager if enabled (deferred)
-		if config.cache and config.cache.enabled then
-			local cache_manager = require("token-count.cache")
-			cache_manager.setup(config.cache)
-		end
-		
-		-- Setup autocommands and events (deferred)
-		require("token-count.init.events").setup_autocommands()
-		
-		-- Initialize plugin environment (deferred)
-		require("token-count.init.setup").initialize_plugin(opts)
-		
-		-- Initialize cleanup system
-		local cleanup_ok, cleanup = pcall(require, "token-count.cleanup")
-		if cleanup_ok then
-			cleanup.initialize()
-		end
 	end
 end
 
@@ -167,7 +158,6 @@ function M.cleanup()
     
     -- Reset plugin state
     _setup_complete = false
-    _deferred_setup = nil
     
     require("token-count.log").info("Plugin cleanup completed")
 end

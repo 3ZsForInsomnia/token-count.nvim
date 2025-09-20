@@ -7,9 +7,8 @@ local function get_cleanup()
 end
 local pending_notifications = {}
 local notification_timer = nil
-local NOTIFICATION_BATCH_DELAY = 1000 -- 1 second
+local NOTIFICATION_BATCH_DELAY = 100 -- 100ms for responsive UI updates
 
---- Flush pending notifications
 local function flush_notifications()
 	if #pending_notifications == 0 then
 		return

@@ -41,7 +41,7 @@ local function init_instance()
 			enable_directory_caching = false, -- Disabled - only file caching now
 			enable_file_caching = true,
 			request_debounce = 500, -- 500ms debounce for better UI responsiveness
-			lazy_start = true, -- Start timer only when first request is made
+			lazy_start = false, -- Start timer immediately
 
 			-- Enhanced performance settings
 			max_concurrent_processing = 2, -- Max simultaneous processing jobs
@@ -61,6 +61,7 @@ local function init_instance()
 
 		-- Lazy initialization state
 		timer_started = false,
+
 	}
 
 	return instance

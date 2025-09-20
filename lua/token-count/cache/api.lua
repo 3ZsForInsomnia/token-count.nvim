@@ -62,6 +62,15 @@ function M.get_token_count(path, path_type)
         return cached.formatted
     end
     
+    -- For stale entries, return the old value but still queue reprocessing
+    local is_stale = cached and cached.status == "stale"
+    
+    -- If we have a stale entry, return it immediately and queue reprocessing in background
+    if is_stale then
+        -- Just return the stale value - reprocessing is handled by invalidate_file
+        return cached.formatted
+    end
+    
     -- Handle different path types
     if path_type == "file" and inst.config.enable_file_caching then
         return M._handle_file_request(inst, path)
@@ -203,8 +212,13 @@ end
 function M.invalidate_file(file_path, reprocess)
     local inst = instance_manager.get_instance()
     
-    -- Remove from cache
-    inst.cache[file_path] = nil
+    -- Mark cache entry as stale instead of removing it completely
+    -- This allows lualine to continue showing the old value until new one is ready
+    local cached = inst.cache[file_path]
+    if cached then
+        cached.status = "stale"
+        cached.timestamp = 0 -- Force cache miss on TTL check
+    end
     
     if reprocess and processor.should_process_file(file_path) then
         M._queue_invalidated_file(inst, file_path)
@@ -239,7 +253,7 @@ function M._queue_invalidated_file(inst, file_path)
         end
         
         inst.debounce_timers[debounce_key] = vim.loop.new_timer()
-        inst.debounce_timers[debounce_key]:start(inst.config.request_debounce or 100, 0, function()
+        inst.debounce_timers[debounce_key]:start(inst.config.request_debounce or 250, 0, function()
             vim.schedule(function()
                 timer.process_queue_batch()
                 inst.debounce_timers[debounce_key]:close()

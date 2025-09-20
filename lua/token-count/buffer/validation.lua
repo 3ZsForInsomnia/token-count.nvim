@@ -5,29 +5,57 @@ local M = {}
 --- @param filetype string The filetype to check
 --- @return boolean valid Whether the filetype is acceptable
 function M.is_valid_filetype(filetype)
-	-- List of acceptable filetypes (text-based files)
+	-- Supported file types for token counting
 	local valid_types = {
 		-- Programming languages
-		"lua", "python", "javascript", "typescript", "java", "c", "cpp", "rust",
-		"go", "ruby", "php", "swift", "kotlin", "scala", "clojure", "haskell",
-		"vim", "viml", "bash", "sh", "zsh", "fish", "powershell",
-
-		-- Web technologies
-		"html", "css", "scss", "sass", "less", "vue", "svelte", "jsx", "tsx",
-		"json", "xml", "yaml", "yml", "toml",
-
-		-- Documentation and text
-		"markdown", "md", "txt", "text", "rst", "org", "tex", "latex",
-
-		-- Configuration files
-		"conf", "config", "ini", "cfg", "properties", "gitignore", "gitconfig",
-		"dockerfile", "docker", "makefile", "cmake",
-
-		-- Data formats
-		"csv", "tsv", "sql", "graphql", "proto",
-
-		-- Other common text formats
-		"log", "diff", "patch",
+		"lua", "python", "go", "rust", "java", "c", "cpp", "zig",
+		
+		-- Web development
+		"javascript", "typescript", "jsx", "tsx",
+		"javascriptreact", "typescriptreact",
+		"vue", "svelte",
+		"html", "css", "scss", "sass", "less", "stylus",
+		"json", "json5", "jsonc",
+		"xml", "svg",
+		
+		-- Shell and scripting
+		"sh", "bash", "zsh", "fish", "powershell", "ps1",
+		"vim", "viml", "vimscript",
+		"ruby", "php", "swift", "kotlin", "scala", "clojure", "haskell",
+		"elixir", "erlang", "dart", "crystal", "nim",
+		"assembly", "asm", "nasm", "gas", "objc", "objcpp",
+		"ocaml", "fsharp", "racket", "scheme", "lisp", "commonlisp",
+		
+		-- Configuration and data
+		"yaml", "yml", "toml", "ini", "cfg", "conf", "config", "properties",
+		"env", "dotenv",
+		"markdown", "md", "rst", "org", "asciidoc", "tex", "latex", "bibtex",
+		"txt", "text", "plaintext",
+		"sql", "mysql", "postgresql", "sqlite", "plsql",
+		"graphql", "gql",
+		"dockerfile", "docker", "containerfile",
+		"terraform", "tf", "hcl",
+		"ansible", "yaml.ansible",
+		"make", "makefile", "cmake", "ninja", "bazel", "buck",
+		"gradle", "maven", "sbt",
+		"diff", "patch", "gitcommit", "gitrebase", "gitconfig",
+		"gitignore", "gitattributes",
+		"csv", "tsv", "psv", "ssv",
+		"proto", "protobuf", "grpc",
+		"log", "logs", "trace",
+		"jupyter", "ipynb",
+		"r", "rmd", "rnw",
+		"julia", "jl",
+		"matlab", "m",
+		"octave",
+		"stata", "do", "ado",
+		"sas",
+		"edge", "liquid", "mustache", "handlebars", "jinja", "j2",
+		"email", "mail", "eml",
+		"requirements", "pipfile", "poetry",
+		"gemfile", "rakefile", "guardfile",
+		"cargo",
+		"pom",
 	}
 
 	-- Handle empty or nil filetype
