@@ -4,15 +4,15 @@ function M.initialize_plugin(opts)
 	-- Initialize Python availability cache early to avoid blocking calls later
 	local venv_utils = require("token-count.venv.utils")
 	venv_utils.init_python_cache()
-	
+
 	-- Initialize dependency caches to avoid blocking calls later
 	local dependencies = require("token-count.venv.dependencies")
 	dependencies.init_all_dependency_caches()
-	
+
 	-- Initialize venv status cache to avoid blocking calls later
 	local venv_setup = require("token-count.venv.setup")
 	venv_setup.init_status_cache()
-	
+
 	-- Log successful setup
 	local config = require("token-count.config")
 	require("token-count.log").info("token-count.nvim setup complete with model: " .. config.get().model)
@@ -46,17 +46,6 @@ function M.initialize_plugin(opts)
 			require("token-count.log").error("Dependencies installation failed: " .. (warnings or "unknown error"))
 		end
 	end)
-
-	-- Auto-setup CodeCompanion extension if available
-	local codecompanion_ok, _ = pcall(require, "codecompanion")
-	if codecompanion_ok then
-		-- Try to load our extension
-		local extension_ok, extension = pcall(require, "codecompanion._extensions.token-counter.nvim")
-		if extension_ok then
-			extension.setup(opts.codecompanion or {})
-			require("token-count.log").info("CodeCompanion extension auto-loaded")
-		end
-	end
 end
 
 return M
