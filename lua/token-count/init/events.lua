@@ -45,6 +45,29 @@ function M.setup_autocommands()
 		end,
 		desc = "Invalidate token count cache after buffer save",
 	})
+
+	-- Process files immediately when opened for initial count
+	vim.api.nvim_create_autocmd("BufReadPost", {
+		group = augroup,
+		callback = function(args)
+			-- Only process valid buffer types
+			local buffer_validation = require("token-count.buffer.validation")
+			if buffer_validation.is_buffer_valid_for_counting(args.buf) then
+				local current_file = vim.api.nvim_buf_get_name(args.buf)
+				if current_file and current_file ~= "" then
+					local cache_manager = require("token-count.cache")
+					-- Check if we already have a cached result to avoid reprocessing
+					local cached = cache_manager.get_file_token_count(current_file)
+					if not cached or cached == cache_manager.get_config().placeholder_text then
+						cache_manager.count_file_immediate(current_file, function(result, error)
+							-- Cache notification sent automatically on completion
+						end)
+					end
+				end
+			end
+		end,
+		desc = "Count tokens when file is opened",
+	})
 end
 
 return M
