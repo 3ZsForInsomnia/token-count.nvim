@@ -7,19 +7,19 @@ function M.setup(opts)
 	-- Initialize system components
 	local version = require("token-count.version")
 	version.initialize()
-	
+
 	require("token-count.log").setup_log_rotation()
-	
+
 	-- Cache Python environment info to avoid blocking calls later
 	local venv_utils = require("token-count.venv.utils")
 	venv_utils.init_python_cache()
-	
+
 	local dependencies = require("token-count.venv.dependencies")
 	dependencies.init_all_dependency_caches()
-	
+
 	local venv_setup = require("token-count.venv.setup")
 	venv_setup.init_status_cache()
-	
+
 	local config = require("token-count.config")
 	config.setup(opts)
 
@@ -27,32 +27,31 @@ function M.setup(opts)
 	require("token-count.init.commands").create_commands()
 	require("token-count.init.commands").create_venv_commands()
 
-
 	local current_config = config.get()
-	
+
 	if current_config.cache and current_config.cache.enabled then
 		local cache_manager = require("token-count.cache")
 		cache_manager.setup(current_config.cache)
-		
+
 		-- Register lualine refresh callback
 		cache_manager.register_update_callback(function(path, path_type)
 			vim.schedule(function()
 				if vim.g.loaded_lualine then
-					require('lualine').refresh()
+					require("lualine").refresh()
 				end
 			end)
 		end)
 	end
-	
+
 	require("token-count.init.setup").initialize_plugin(opts)
-	
+
 	require("token-count.init.events").setup_autocommands()
-	
+
 	local cleanup_ok, cleanup = pcall(require, "token-count.cleanup")
 	if cleanup_ok then
 		cleanup.initialize()
 	end
-	
+
 	_setup_complete = true
 end
 
@@ -112,53 +111,53 @@ function M.get_current_model()
 	return require("token-count.models.utils").get_model(config.model)
 end
 
- --- Count tokens for a file immediately (bypasses queue)
- --- @param file_path string Path to the file
- --- @param callback function Callback function(result, error)
- function M.count_file_immediate(file_path, callback)
- 	ensure_initialized()
- 	local cache_manager = require("token-count.cache")
- 	cache_manager.count_file_immediate(file_path, callback)
- end
- 
- --- Count tokens for a file in background queue
- --- @param file_path string Path to the file
- --- @param callback function|nil Optional callback function(result, error)
- function M.count_file_background(file_path, callback)
- 	ensure_initialized()
- 	local cache_manager = require("token-count.cache")
- 	cache_manager.count_file_background(file_path, callback)
- end
- 
- --- Get cached token count for a file
- --- @param file_path string Path to the file
- --- @return string|nil token_display Formatted token count or nil
- function M.get_cached_count(file_path)
- 	ensure_initialized()
- 	local cache_manager = require("token-count.cache")
- 	return cache_manager.get_file_token_count(file_path)
- end
- 
- --- Invalidate cache for a specific file
- --- @param file_path string Path to the file
- function M.invalidate_cache(file_path)
- 	ensure_initialized()
- 	local cache_manager = require("token-count.cache")
- 	cache_manager.invalidate_file(file_path, false)
- end
- 
+--- Count tokens for a file immediately (bypasses queue)
+--- @param file_path string Path to the file
+--- @param callback function Callback function(result, error)
+function M.count_file_immediate(file_path, callback)
+	ensure_initialized()
+	local cache_manager = require("token-count.cache")
+	cache_manager.count_file_immediate(file_path, callback)
+end
+
+--- Count tokens for a file in background queue
+--- @param file_path string Path to the file
+--- @param callback function|nil Optional callback function(result, error)
+function M.count_file_background(file_path, callback)
+	ensure_initialized()
+	local cache_manager = require("token-count.cache")
+	cache_manager.count_file_background(file_path, callback)
+end
+
+--- Get cached token count for a file
+--- @param file_path string Path to the file
+--- @return string|nil token_display Formatted token count or nil
+function M.get_cached_count(file_path)
+	ensure_initialized()
+	local cache_manager = require("token-count.cache")
+	return cache_manager.get_file_token_count(file_path)
+end
+
+--- Invalidate cache for a specific file
+--- @param file_path string Path to the file
+function M.invalidate_cache(file_path)
+	ensure_initialized()
+	local cache_manager = require("token-count.cache")
+	cache_manager.invalidate_file(file_path, false)
+end
+
 function M.cleanup()
-    require("token-count.log").info("Starting plugin cleanup...")
-    
-    -- Stop and cleanup cache system
-    local cache_ok, cache = pcall(require, "token-count.cache")
-    if cache_ok and cache.cleanup then
-        cache.cleanup()
-    end
-    
-    -- Reset plugin state
-    _setup_complete = false
-    
-    require("token-count.log").info("Plugin cleanup completed")
+	require("token-count.log").info("Starting plugin cleanup...")
+
+	-- Stop and cleanup cache system
+	local cache_ok, cache = pcall(require, "token-count.cache")
+	if cache_ok and cache.cleanup then
+		cache.cleanup()
+	end
+
+	-- Reset plugin state
+	_setup_complete = false
+
+	require("token-count.log").info("Plugin cleanup completed")
 end
 return M
