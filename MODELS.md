@@ -125,8 +125,9 @@ By default, all Anthropic models use tokencost for estimation.
 | `claude-3-opus` | Claude 3 Opus | 200,000 | 4,096 | tokencost/official API |
 | `claude-3.5-sonnet` | Claude 3.5 Sonnet | 200,000 | 8,192 | tokencost/official API |
 | `claude-3.5-haiku` | Claude 3.5 Haiku | 200,000 | 8,192 | tokencost/official API |
-| `claude-4-sonnet` | Claude 4 Sonnet | 1,000,000 | 1,000,000 | tokencost/official API |
+| `claude-4-sonnet` | Claude 4 Sonnet | 200,000 | 200,000 | tokencost/official API |
 | `claude-4-opus` | Claude 4 Opus | 200,000 | 32,000 | tokencost/official API |
+| `claude-4.5-sonnet` | Claude 4.5 Sonnet | 200,000 | 200,000 | tokencost/official API |
 
 **Configuration for official API:**
 ```lua
@@ -150,6 +151,7 @@ All Anthropic models use tokencost for estimation by default.
 | `claude-3.5-haiku` | Claude 3.5 Haiku | 200,000 | 8,192 |
 | `claude-4-sonnet` | Claude 4 Sonnet | 1,000,000 | 1,000,000 |
 | `claude-4-opus` | Claude 4 Opus | 200,000 | 32,000 |
+| `claude-4.5-sonnet` | Claude 4.5 Sonnet | 200,000 | 200,000 |
 
 ### 🌐 Exact API Counting (optional)
 

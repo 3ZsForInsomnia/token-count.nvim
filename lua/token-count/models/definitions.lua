@@ -224,6 +224,15 @@ M.models = {
 		tokencost_name = "claude-4-opus-20250514",
 		technical_name = "claude-4-opus",
 	},
+	["claude-4.5-sonnet"] = {
+		name = "Claude Sonnet 4.5",
+		provider = "tokencost",
+		encoding = "claude-4-sonnet-20250514",
+		context_window = 200000,
+		max_output_tokens = 200000,
+		tokencost_name = "claude-4.5-sonnet-20250514",
+		technical_name = "claude-4.5-sonnet",
+	},
 
 	-- Google Gemini Models (estimates via tokencost, accurate if official API enabled)
 	["gemini-2.0-flash"] = {
