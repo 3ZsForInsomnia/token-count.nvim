@@ -86,6 +86,51 @@ local function _check_python_available_impl()
 	end
 end
 
+--- Async version of Python availability check
+--- @param callback function Callback with (available, version_or_error)
+local function _check_python_available_async(callback)
+	local python_cmd = { "python3", "--version" }
+	vim.system(python_cmd, { text = true }, function(result)
+		if result.code == 0 then
+			local version = result.stdout:gsub("%s+$", "")
+			callback(true, version)
+		else
+			-- Try just "python" as fallback
+			local python_cmd_fallback = { "python", "--version" }
+			vim.system(python_cmd_fallback, { text = true }, function(fallback_result)
+				if fallback_result.code == 0 and fallback_result.stdout:match("Python 3") then
+					local version = fallback_result.stdout:gsub("%s+$", "")
+					callback(true, version)
+				else
+					callback(false, "Python 3 not found in PATH")
+				end
+			end)
+		end
+	end)
+end
+
+--- Initialize Python cache asynchronously
+--- @param callback function|nil Optional callback when complete
+function M.init_python_cache_async(callback)
+	if python_cache.checked then
+		if callback then callback() end
+		return
+	end
+	
+	_check_python_available_async(function(available, version_or_error)
+		python_cache.checked = true
+		python_cache.available = available
+		if available then
+			python_cache.version = version_or_error
+			python_cache.error = nil
+		else
+			python_cache.version = nil
+			python_cache.error = version_or_error
+		end
+		if callback then callback() end
+	end)
+end
+
 --- Initialize the Python availability cache
 --- This should be called once during plugin startup
 function M.init_python_cache()
@@ -104,15 +149,26 @@ function M.init_python_cache()
 end
 
 function M.check_python_available()
-	-- Initialize cache if not already done (fallback for cases where init wasn't called)
-	if not python_cache.checked then
-		M.init_python_cache()
+	-- Return cached result if available
+	if python_cache.checked then
+		if python_cache.available then
+			return true, python_cache.version
+		else
+			return false, python_cache.error
+		end
 	end
-
-	if python_cache.available then
-		return true, python_cache.version
+	
+	-- Try to initialize cache synchronously, with fallback for fast event contexts
+	local success, err = pcall(M.init_python_cache)
+	if success then
+		-- Synchronous init worked, return the result
+		return M.check_python_available() -- Recursive call with cache now populated
 	else
-		return false, python_cache.error
+		-- Fast event context or other error - schedule async init and return optimistic result
+		vim.schedule(function()
+			M.init_python_cache_async()
+		end)
+		return true, "Python 3 (checking in background)"
 	end
 end
 

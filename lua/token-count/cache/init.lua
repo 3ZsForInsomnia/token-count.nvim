@@ -33,6 +33,7 @@ M.update_cache_with_count = api.update_cache_with_count
 M.register_update_callback = management.register_update_callback
 M.clear_cache = management.clear_cache
 M.get_stats = management.get_stats
+M.queue_directory_files = management.queue_directory_files
 M.update_config = management.update_config
 M.get_config = management.get_config
 M.cleanup = management.cleanup

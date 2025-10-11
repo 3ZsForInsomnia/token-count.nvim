@@ -10,18 +10,27 @@ function M.setup(opts)
 
 	require("token-count.log").setup_log_rotation()
 
-	-- Cache Python environment info to avoid blocking calls later
-	local venv_utils = require("token-count.venv.utils")
-	venv_utils.init_python_cache()
-
-	local dependencies = require("token-count.venv.dependencies")
-	dependencies.init_all_dependency_caches()
-
-	local venv_setup = require("token-count.venv.setup")
-	venv_setup.init_status_cache()
 
 	local config = require("token-count.config")
 	config.setup(opts)
+
+	-- Proactively initialize caches asynchronously to prepare for future use
+	vim.schedule(function()
+		local venv_utils = require("token-count.venv.utils")
+		venv_utils.init_python_cache_async()
+		
+		local dependencies = require("token-count.venv.dependencies")
+		for dep_name, _ in pairs(venv_utils.DEPENDENCIES) do
+			dependencies.init_dependency_cache_async(dep_name)
+		end
+		
+		-- After all async dependency checks complete, initialize status cache
+		-- This is done last to ensure all dependency caches are populated first
+		vim.defer_fn(function()
+			local venv_setup = require("token-count.venv.setup")
+			pcall(venv_setup.init_status_cache) -- Use pcall for safety
+		end, 100) -- Small delay to let dependency checks complete
+	end)
 
 	-- Setup commands and autocommands
 	require("token-count.init.commands").create_commands()

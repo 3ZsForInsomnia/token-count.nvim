@@ -29,6 +29,52 @@ local function _check_dependency_impl(dependency_name)
 	end
 end
 
+--- Async version of dependency checking that doesn't block
+--- @param dependency_name string The dependency name
+--- @param callback function Callback with (installed, error)
+local function _check_dependency_async(dependency_name, callback)
+	if not utils.venv_exists() then
+		callback(false, "Virtual environment does not exist")
+		return
+	end
+	
+	local dep_config = utils.DEPENDENCIES[dependency_name]
+	if not dep_config then
+		callback(false, "Unknown dependency: " .. dependency_name)
+		return
+	end
+	
+	local python_path = utils.get_python_path()
+	local check_cmd = { python_path, "-c", dep_config.import_test }
+	
+	vim.system(check_cmd, { text = true }, function(result)
+		if result.code == 0 and result.stdout:match("OK") then
+			callback(true, nil)
+		else
+			callback(false, result.stderr or "Import failed")
+		end
+	end)
+end
+
+--- Initialize dependency cache asynchronously for a specific dependency
+--- @param dependency_name string The dependency name
+--- @param callback function|nil Optional callback when complete
+function M.init_dependency_cache_async(dependency_name, callback)
+	if dependency_cache[dependency_name] then
+		if callback then callback() end
+		return
+	end
+	
+	_check_dependency_async(dependency_name, function(installed, error)
+		dependency_cache[dependency_name] = {
+			checked = true,
+			installed = installed,
+			error = error
+		}
+		if callback then callback() end
+	end)
+end
+
 --- Initialize dependency cache for a specific dependency
 function M.init_dependency_cache(dependency_name)
 	if not dependency_cache[dependency_name] then

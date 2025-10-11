@@ -77,7 +77,8 @@ end
 function M.add_buffer_breakdown(message, buffer_results)
     table.insert(message, "Buffer Breakdown:")
     for _, buf_result in ipairs(buffer_results) do
-        table.insert(message, string.format("  %s: %d tokens", buf_result.name, buf_result.tokens))
+        local tokens = buf_result.tokens or 0 -- Safety fallback for nil tokens
+        table.insert(message, string.format("  %s: %d tokens", buf_result.name, tokens))
     end
 end
 

@@ -7,7 +7,8 @@ local M = {}
 function M.get_buffer_display_name(buffer_id)
 	local buf_name = vim.api.nvim_buf_get_name(buffer_id)
 	if buf_name ~= "" then
-		return vim.fn.fnamemodify(buf_name, ":t")
+		local display_name = vim.fn.fnamemodify(buf_name, ":t")
+		return display_name ~= "" and display_name or "[Buffer]"
 	else
 		return "[No Name]"
 	end
@@ -68,6 +69,13 @@ function M._count_multiple_buffers_impl(buffer_ids, model_config, callback)
 						buffer_id = buf_id,
 						name = M.get_buffer_display_name(buf_id),
 						tokens = token_count,
+					})
+				else
+					-- Include buffer with 0 tokens when counting fails but no error is reported
+					table.insert(buffer_results, {
+						buffer_id = buf_id,
+						name = M.get_buffer_display_name(buf_id),
+						tokens = 0,
 					})
 				end
 

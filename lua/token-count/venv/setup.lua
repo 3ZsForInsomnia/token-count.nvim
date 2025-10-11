@@ -14,16 +14,6 @@ local status_cache = {
 function M.setup_venv(callback)
 	callback = callback or function() end
 
-	-- Check if already set up with primary dependencies
-	local tokencost_installed = dependencies.is_dependency_installed("tokencost")
-	local tiktoken_installed = dependencies.is_dependency_installed("tiktoken")
-	local deepseek_installed = dependencies.is_dependency_installed("deepseek_tokenizer")
-	
-	if tokencost_installed and tiktoken_installed and deepseek_installed then
-		require("token-count.log").info("Virtual environment already set up with core dependencies")
-		callback(true, nil)
-		return
-	end
 
 	-- Create venv if it doesn't exist
 	if not utils.venv_exists() then
@@ -98,12 +88,78 @@ function M.clear_status_cache()
 end
 
 function M.get_status()
-	-- Initialize cache if not already done (fallback for cases where init wasn't called)
-	if not status_cache.checked then
-		M.init_status_cache()
+	-- Return cached status if available
+	if status_cache.checked then
+		return status_cache.status
 	end
 	
-	return status_cache.status
+	-- Check if we can safely initialize (not in a fast event context)
+	-- We do a simple test: try to create a timer, which fails in fast contexts
+	local can_init_safely = pcall(function()
+		local timer = vim.uv.new_timer()
+		timer:close()
+	end)
+	
+	if can_init_safely then
+		-- Safe to initialize synchronously
+		local success, err = pcall(M.init_status_cache)
+		if success then
+			return status_cache.status
+		end
+	end
+	
+	-- Not safe to initialize or initialization failed
+	-- Schedule async initialization for later and return safe defaults
+	vim.schedule(function()
+		pcall(M.init_status_cache)
+	end)
+	
+	-- Return conservative status to prevent recursion
+	local venv_exists = utils.venv_exists()
+	return {
+		python_available = false, -- Conservative until verified
+		python_info = "Checking in background",
+		venv_exists = venv_exists,
+		venv_path = utils.get_venv_path(),
+		python_path = utils.get_python_path(),
+		
+		-- Dependencies - conservative assumptions
+		tiktoken_installed = false,
+		tiktoken_error = "Checking in background",
+		tokencost_installed = false,
+		tokencost_error = "Checking in background",
+		deepseek_installed = false,
+		deepseek_error = "Checking in background",
+		anthropic_installed = false,
+		anthropic_error = "Checking in background",
+		gemini_installed = false,
+		gemini_error = "Checking in background",
+		
+		-- API Keys
+		anthropic_api_key = false,
+		gemini_api_key = false,
+		
+		-- Overall readiness
+		ready = false, -- Always false to prevent recovery loops
+	}
+end
+
+--- Get status with safe initialization (only call this from non-recursive contexts)
+--- @return table status The complete status information
+function M.get_status_with_init()
+	-- Return cached status if available
+	if status_cache.checked then
+		return status_cache.status
+	end
+	
+	-- Try to initialize status cache safely
+	local success, err = pcall(M.init_status_cache)
+	if success then
+		return status_cache.status
+	else
+		-- If initialization fails, return the basic status
+		return M.get_status()
+	end
 end
 
 return M
