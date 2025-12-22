@@ -31,51 +31,55 @@ function M._count_tokens_primary(text, model_name, callback)
 		return
 	end
 
-	-- Check if venv is ready
-	local status = venv.get_status()
-	if not status.ready then
-		local error_obj = errors.create_error(
-			errors.ErrorTypes.VENV_NOT_READY,
-			"Virtual environment not ready",
-			{text = text}
-		)
+	-- Trigger lazy initialization of dependencies on first use
+	local dependencies = require("token-count.venv.dependencies")
+	dependencies.ensure_lazy_init(function()
+		-- After lazy init, check if venv is ready
+		local status = venv.get_status()
+		if not status.ready then
+			local error_obj = errors.create_error(
+				errors.ErrorTypes.VENV_NOT_READY,
+				"Virtual environment not ready",
+				{text = text}
+			)
+			
+			-- Attempt recovery with auto-setup
+			errors.handle_with_recovery(error_obj, callback, function()
+				M._count_tokens_primary(text, model_name, callback)
+			end)
+			return
+		end
+
+		local python_path = venv.get_python_path()
+		local config = require("token-count.config").get()
 		
-		-- Attempt recovery with auto-setup
-		errors.handle_with_recovery(error_obj, callback, function()
-			M._count_tokens_primary(text, model_name, callback)
-		end)
-		return
-	end
+		-- Pass configuration flags for official providers
+		local enable_anthropic = config.enable_official_anthropic_counter and "true" or "false"
+		local enable_gemini = config.enable_official_gemini_counter and "true" or "false"
+		
+		local cmd = { python_path, script_path, model_name, enable_anthropic, enable_gemini, text }
 
-	local python_path = venv.get_python_path()
-	local config = require("token-count.config").get()
-	
-	-- Pass configuration flags for official providers
-	local enable_anthropic = config.enable_official_anthropic_counter and "true" or "false"
-	local enable_gemini = config.enable_official_gemini_counter and "true" or "false"
-	
-	local cmd = { python_path, script_path, model_name, enable_anthropic, enable_gemini, text }
-
-	-- Use vim.system instead of jobstart to avoid fast event context issues
-	vim.system(cmd, { text = true }, function(result)
-		-- Schedule callback to avoid fast event context restrictions
-		vim.schedule(function()
-			if result.code == 0 then
-				local stdout = result.stdout and result.stdout:gsub("%s+$", "") or ""
-				if stdout ~= "" then
-					local token_count = tonumber(stdout)
-					if token_count then
-						callback(token_count, nil)
+		-- Use vim.system instead of jobstart to avoid fast event context issues
+		vim.system(cmd, { text = true }, function(result)
+			-- Schedule callback to avoid fast event context restrictions
+			vim.schedule(function()
+				if result.code == 0 then
+					local stdout = result.stdout and result.stdout:gsub("%s+$", "") or ""
+					if stdout ~= "" then
+						local token_count = tonumber(stdout)
+						if token_count then
+							callback(token_count, nil)
+						else
+							callback(nil, "Invalid token count returned: " .. stdout)
+						end
 					else
-						callback(nil, "Invalid token count returned: " .. stdout)
+						callback(nil, "No output from tokencost")
 					end
 				else
-					callback(nil, "No output from tokencost")
+					local error_msg = result.stderr and result.stderr:gsub("%s+$", "") or "Unknown error"
+					callback(nil, "Tokencost error: " .. error_msg)
 				end
-			else
-				local error_msg = result.stderr and result.stderr:gsub("%s+$", "") or "Unknown error"
-				callback(nil, "Tokencost error: " .. error_msg)
-			end
+			end)
 		end)
 	end)
 end

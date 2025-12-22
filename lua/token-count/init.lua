@@ -15,21 +15,18 @@ function M.setup(opts)
 	config.setup(opts)
 
 	-- Proactively initialize caches asynchronously to prepare for future use
+	-- This is optional and doesn't block - actual initialization happens on first use
 	vim.schedule(function()
 		local venv_utils = require("token-count.venv.utils")
 		venv_utils.init_python_cache_async()
 		
-		local dependencies = require("token-count.venv.dependencies")
-		for dep_name, _ in pairs(venv_utils.DEPENDENCIES) do
-			dependencies.init_dependency_cache_async(dep_name)
-		end
-		
-		-- After all async dependency checks complete, initialize status cache
-		-- This is done last to ensure all dependency caches are populated first
+		-- Optionally start lazy initialization of dependencies in background
+		-- This is just for better first-use experience, not required
 		vim.defer_fn(function()
-			local venv_setup = require("token-count.venv.setup")
-			pcall(venv_setup.init_status_cache) -- Use pcall for safety
-		end, 100) -- Small delay to let dependency checks complete
+			local dependencies = require("token-count.venv.dependencies")
+			-- This will start async checks without blocking
+			dependencies.ensure_lazy_init()
+		end, 500) -- Small delay to let Neovim fully start up
 	end)
 
 	-- Setup commands and autocommands

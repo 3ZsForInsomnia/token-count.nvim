@@ -14,29 +14,33 @@ local status_cache = {
 function M.setup_venv(callback)
 	callback = callback or function() end
 
+	-- Defer to avoid fast event context
+	vim.schedule(function()
+		-- Create venv if it doesn't exist
+		if not utils.venv_exists() then
+			manager.create_venv(function(success, create_error)
+				if not success then
+					callback(false, create_error)
+					return
+				end
 
-	-- Create venv if it doesn't exist
-	if not utils.venv_exists() then
-		manager.create_venv(function(success, create_error)
-			if not success then
-				callback(false, create_error)
-				return
-			end
-
-			-- Install all dependencies after venv creation
+				-- Install all dependencies after venv creation
+				dependencies.install_all_dependencies(callback)
+			end)
+		else
+			-- Venv exists but dependencies need installation
 			dependencies.install_all_dependencies(callback)
-		end)
-	else
-		-- Venv exists but dependencies need installation
-		dependencies.install_all_dependencies(callback)
-	end
+		end
+	end)
 end
 
 --- Internal function to actually compute status (may contain blocking calls)
---- This should only be called once during plugin initialization
+--- This should only be called in safe async contexts, never in fast events
 local function _get_status_impl()
 	local python_available, python_info = utils.check_python_available()
 	local venv_exists = utils.venv_exists()
+	
+	-- Use non-blocking dependency checks (cache only)
 	local tiktoken_installed, tiktoken_error = dependencies.is_dependency_installed("tiktoken")
 	local tokencost_installed, tokencost_error = dependencies.is_dependency_installed("tokencost")
 	local deepseek_installed, deepseek_error = dependencies.is_dependency_installed("deepseek_tokenizer")
@@ -72,8 +76,8 @@ local function _get_status_impl()
 	}
 end
 
---- Initialize the status cache
---- This should be called once during plugin startup
+--- Initialize the status cache (safe, non-blocking version)
+--- This can be called during plugin startup without causing issues
 function M.init_status_cache()
 	if not status_cache.checked then
 		status_cache.status = _get_status_impl()
