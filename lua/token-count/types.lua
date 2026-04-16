@@ -33,6 +33,7 @@
 
 --- @class PluginConfig
 --- @field model string Default model identifier
+--- @field copilot_host boolean When true, caps effective context window at 128k tokens (GitHub Copilot limit)
 --- @field log_level "info"|"warn"|"error" Logging verbosity level
 --- @field context_warning_threshold number Threshold for context usage warnings (0-1)
 --- @field enable_official_anthropic_counter boolean Use Anthropic API for exact counts

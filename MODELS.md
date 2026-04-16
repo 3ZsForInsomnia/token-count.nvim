@@ -128,6 +128,10 @@ By default, all Anthropic models use tokencost for estimation.
 | `claude-4-sonnet` | Claude 4 Sonnet | 200,000 | 200,000 | tokencost/official API |
 | `claude-4-opus` | Claude 4 Opus | 200,000 | 32,000 | tokencost/official API |
 | `claude-4.5-sonnet` | Claude 4.5 Sonnet | 200,000 | 200,000 | tokencost/official API |
+| `claude-4.6-opus` | Claude 4.6 Opus | 1,000,000 | 32,000 | tokencost/official API |
+| `claude-4.6-sonnet` | Claude 4.6 Sonnet | 1,000,000 | 1,000,000 | tokencost/official API |
+| `claude-4.7-opus` | Claude 4.7 Opus | 1,000,000 | 32,000 | tokencost/official API |
+| `claude-4.7-sonnet` | Claude 4.7 Sonnet | 1,000,000 | 1,000,000 | tokencost/official API |
 
 **Configuration for official API:**
 ```lua
@@ -152,6 +156,10 @@ All Anthropic models use tokencost for estimation by default.
 | `claude-4-sonnet` | Claude 4 Sonnet | 1,000,000 | 1,000,000 |
 | `claude-4-opus` | Claude 4 Opus | 200,000 | 32,000 |
 | `claude-4.5-sonnet` | Claude 4.5 Sonnet | 200,000 | 200,000 |
+| `claude-4.6-opus` | Claude 4.6 Opus | 1,000,000 | 32,000 |
+| `claude-4.6-sonnet` | Claude 4.6 Sonnet | 1,000,000 | 1,000,000 |
+| `claude-4.7-opus` | Claude 4.7 Opus | 1,000,000 | 32,000 |
+| `claude-4.7-sonnet` | Claude 4.7 Sonnet | 1,000,000 | 1,000,000 |
 
 ### 🌐 Exact API Counting (optional)
 
@@ -351,6 +359,22 @@ Each model can be referenced using any of three naming conventions:
 3. **Tokencost Name** (legacy): varies by model, used internally
 
 The plugin automatically resolves any of these name types for configuration and selection.
+
+## GitHub Copilot Host Mode
+
+If you access models through GitHub Copilot, all models are capped at a **128,000 token** context window regardless of their native limit. Enable this in your config:
+
+```lua
+require("token-count").setup({
+  model = "claude-4.6-opus",
+  copilot_host = true, -- Caps effective context window at 128k
+})
+```
+
+When `copilot_host = true`:
+- Models with a native context window ≤128k are **unaffected**
+- Models with a native context window >128k (e.g. Claude 4.6 Opus at 1M, GPT-4.1 at ~1M) are **capped to 128,000 tokens** for all percentage calculations, warnings, and UI displays
+- The Telescope model picker preview will note when a model's context is being capped
 
 ## Accuracy Summary
 

@@ -233,6 +233,42 @@ M.models = {
 		tokencost_name = "claude-4.5-sonnet-20250514",
 		technical_name = "claude-4.5-sonnet",
 	},
+	["claude-4.6-opus"] = {
+		name = "Claude 4.6 Opus",
+		provider = "tokencost",
+		encoding = "claude-4-opus-20250514",
+		context_window = 1000000,
+		max_output_tokens = 32000,
+		tokencost_name = "claude-4-opus-20250514",
+		technical_name = "claude-4.6-opus",
+	},
+	["claude-4.6-sonnet"] = {
+		name = "Claude 4.6 Sonnet",
+		provider = "tokencost",
+		encoding = "claude-4-sonnet-20250514",
+		context_window = 1000000,
+		max_output_tokens = 1000000,
+		tokencost_name = "claude-4-sonnet-20250514",
+		technical_name = "claude-4.6-sonnet",
+	},
+	["claude-4.7-opus"] = {
+		name = "Claude 4.7 Opus",
+		provider = "tokencost",
+		encoding = "claude-4-opus-20250514",
+		context_window = 1000000,
+		max_output_tokens = 32000,
+		tokencost_name = "claude-4-opus-20250514",
+		technical_name = "claude-4.7-opus",
+	},
+	["claude-4.7-sonnet"] = {
+		name = "Claude 4.7 Sonnet",
+		provider = "tokencost",
+		encoding = "claude-4-sonnet-20250514",
+		context_window = 1000000,
+		max_output_tokens = 1000000,
+		tokencost_name = "claude-4-sonnet-20250514",
+		technical_name = "claude-4.7-sonnet",
+	},
 
 	-- Google Gemini Models (estimates via tokencost, accurate if official API enabled)
 	["gemini-2.0-flash"] = {

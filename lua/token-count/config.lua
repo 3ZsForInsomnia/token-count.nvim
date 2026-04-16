@@ -1,7 +1,8 @@
 local M = {}
 
 M.defaults = {
-	model = "gpt-5",
+	model = "claude-4.6-opus",
+	copilot_host = false, -- When true, caps effective context window at 128k tokens (GitHub Copilot limit)
 	log_level = "warn", -- "info", "warn", "error"
 	context_warning_threshold = 0.4, -- Warn when buffers use >40% of context window
 	enable_official_anthropic_counter = false, -- Use official Anthropic API for token counting

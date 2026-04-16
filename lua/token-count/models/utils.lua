@@ -154,4 +154,18 @@ function M.get_provider_handler(provider_name)
     end
 end
 
+--- Get the effective context window for a model, respecting copilot_host cap
+--- @param model_config table The model configuration
+--- @return number effective_context_window The effective context window size
+function M.get_effective_context_window(model_config)
+	local config = require("token-count.config").get()
+	local context_window = model_config.context_window
+
+	if config.copilot_host and context_window > 128000 then
+		return 128000
+	end
+
+	return context_window
+end
+
 return M

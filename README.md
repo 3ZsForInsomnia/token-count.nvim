@@ -48,6 +48,7 @@ Check setup status:
 ```lua
 require("token-count").setup({
   model = "gpt-4",                  -- Default model (see MODELS.md for all options)
+  copilot_host = false,              -- Set to true if using models via GitHub Copilot (caps context at 128k)
   log_level = "warn",               -- Logging verbosity
   context_warning_threshold = 0.4,  -- Warn at 40% context usage
   

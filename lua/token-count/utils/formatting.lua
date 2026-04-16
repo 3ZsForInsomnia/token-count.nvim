@@ -25,12 +25,14 @@ end
 --- @param result table Token count result
 --- @return string json_string Formatted JSON string
 function M.format_result_json(result)
+    local models = require('token-count.models.utils')
+    local effective_context_window = models.get_effective_context_window(result.model_config)
     local json = {
         token_count = result.token_count,
         model_name = result.model_name,
         model_display_name = result.model_config.name,
-        context_window = result.model_config.context_window,
-        percentage = result.token_count / result.model_config.context_window,
+        context_window = effective_context_window,
+        percentage = result.token_count / effective_context_window,
         buffer_id = result.buffer_id
     }
     

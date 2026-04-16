@@ -19,7 +19,8 @@ function M.show_model_selection(callback)
 	local model_display = {}
 
 	for _, model_entry in ipairs(searchable_models) do
-		local context_window_formatted = formatting.format_number_with_commas(model_entry.context_window)
+		local effective_context_window = models.get_effective_context_window(model_entry.config)
+		local context_window_formatted = formatting.format_number_with_commas(effective_context_window)
 		local max_output_formatted = formatting.format_number_with_commas(model_entry.max_output_tokens)
 
 		table.insert(technical_names, model_entry.technical_name)
@@ -69,13 +70,15 @@ end
 --- @param result table Token count result
 function M.notify_token_count_result(result)
 	local formatting = require("token-count.utils.formatting")
-	local percentage = result.token_count / result.model_config.context_window
+	local models = require("token-count.models.utils")
+	local effective_context_window = models.get_effective_context_window(result.model_config)
+	local percentage = result.token_count / effective_context_window
 	local percentage_str = formatting.format_percentage(percentage)
 
 	local message = string.format(
 		"Token Count: %d / %d (%s) - Model: %s",
 		result.token_count,
-		result.model_config.context_window,
+		effective_context_window,
 		percentage_str,
 		result.model_config.name
 	)
@@ -88,12 +91,13 @@ end
 --- @param new_model string New model name
 --- @param model_config table New model configuration
 function M.notify_model_change(previous_model, new_model, model_config)
+	local models = require("token-count.models.utils")
 	local result = {
 		previous_model = previous_model,
 		new_model = new_model,
 		model_name = model_config.name,
 		provider = model_config.provider,
-		context_window = model_config.context_window,
+		context_window = models.get_effective_context_window(model_config),
 	}
 
 	vim.notify("Model changed: " .. vim.json.encode(result), vim.log.levels.INFO)

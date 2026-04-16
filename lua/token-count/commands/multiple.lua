@@ -45,13 +45,15 @@ local function handle_all_buffers_completion(total_tokens, buffer_results, model
 	local formatting = require("token-count.utils.formatting")
 	local ui = require("token-count.utils.ui")
 	local config = require("token-count.config").get()
+	local models = require("token-count.models.utils")
 
-	local percentage = total_tokens / model_config.context_window
+	local effective_context_window = models.get_effective_context_window(model_config)
+	local percentage = total_tokens / effective_context_window
 	local progress_bar = formatting.generate_progress_bar(percentage, 30)
 
 	local message = formatting.format_all_buffers_summary(
 		total_tokens,
-		model_config.context_window,
+		effective_context_window,
 		model_config.name,
 		progress_bar
 	)
@@ -64,7 +66,7 @@ local function handle_all_buffers_completion(total_tokens, buffer_results, model
 		string.format(
 			"All buffers token count: %d/%d (%.1f%%) across %d buffers",
 			total_tokens,
-			model_config.context_window,
+			effective_context_window,
 			percentage * 100,
 			#buffer_results
 		)

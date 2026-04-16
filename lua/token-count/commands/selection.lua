@@ -40,7 +40,9 @@ function M.count_visual_selection()
 		end
 
 		if count then
-			local percentage = (count / model_config.context_window) * 100
+			local models = require("token-count.models.utils")
+			local effective_context_window = models.get_effective_context_window(model_config)
+			local percentage = (count / effective_context_window) * 100
 			local formatting = require("token-count.utils.formatting")
 			local percentage_str = formatting.format_percentage(percentage / 100)
 

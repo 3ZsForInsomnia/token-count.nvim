@@ -43,7 +43,8 @@ local function model_picker(callback)
 	-- Prepare entries for telescope
 	local entries = {}
 	for _, model_entry in ipairs(searchable_models) do
-		local context_window_formatted = formatting.format_number_with_commas(model_entry.context_window)
+		local effective_context_window = models.get_effective_context_window(model_entry.config)
+		local context_window_formatted = formatting.format_number_with_commas(effective_context_window)
 		local max_output_formatted = formatting.format_number_with_commas(model_entry.max_output_tokens)
 
 		-- Check if this is the current model
@@ -104,6 +105,7 @@ local function model_picker(callback)
 				title = "Model Details",
 				define_preview = function(self, entry, status)
 					local model = entry.value
+					local effective_cw = models.get_effective_context_window(model.config)
 					local lines = {
 						"Model: " .. model.nice_name,
 						"Technical Name: " .. model.technical_name,
@@ -111,7 +113,7 @@ local function model_picker(callback)
 						"",
 						"Token Limits:",
 						"  Input (Context): "
-							.. formatting.format_number_with_commas(model.context_window)
+							.. formatting.format_number_with_commas(effective_cw)
 							.. " tokens",
 						"  Output (Max): "
 							.. formatting.format_number_with_commas(model.max_output_tokens)
@@ -138,6 +140,14 @@ local function model_picker(callback)
 						elseif model.technical_name:match("^gemini") then
 							table.insert(lines, "  • Enable official Gemini API for exact counts")
 						end
+					end
+
+					-- Add Copilot host information if active and context was capped
+					if config.copilot_host and model.config.context_window > 128000 then
+						table.insert(lines, "")
+						table.insert(lines, "⚠ Copilot Host: Context capped from "
+							.. formatting.format_number_with_commas(model.config.context_window)
+							.. " to 128,000 tokens")
 					end
 
 					vim.api.nvim_buf_set_lines(self.state.bufnr, 0, -1, false, lines)

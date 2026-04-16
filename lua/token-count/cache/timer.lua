@@ -308,8 +308,11 @@ function M.debounced_immediate_processing(path)
             if is_ui_responsive() and #instance.process_queue > 0 and not instance.processing[path] then
                 M.process_queue_batch()
             end
-            instance.debounce_timers[debounce_key]:close()
-            instance.debounce_timers[debounce_key] = nil
+            local timer = instance.debounce_timers and instance.debounce_timers[debounce_key]
+            if timer then
+                timer:close()
+                instance.debounce_timers[debounce_key] = nil
+            end
         end)
     end)
 end

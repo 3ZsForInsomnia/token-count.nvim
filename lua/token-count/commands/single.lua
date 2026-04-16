@@ -39,7 +39,9 @@ function M.change_model()
 			local current_config = config.get()
 			current_config.model = selected_model
 
-			local context_window_formatted = formatting.format_number_with_commas(model_config.context_window)
+			local models = require("token-count.models.utils")
+			local effective_context_window = models.get_effective_context_window(model_config)
+			local context_window_formatted = formatting.format_number_with_commas(effective_context_window)
 
 			local lines = {}
 
