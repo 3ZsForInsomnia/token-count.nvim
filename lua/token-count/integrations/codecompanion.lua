@@ -53,8 +53,12 @@ function M.setup()
 
 	setup_complete = true
 
+	local augroup = vim.api.nvim_create_augroup("TokenCountCodeCompanion", { clear = true })
+
 	vim.api.nvim_create_autocmd("User", {
+		group = augroup,
 		pattern = "CodeCompanionChatCreated",
+		desc = "token-count.nvim: track ACP estimated tokens for new CodeCompanion chats",
 		callback = function(args)
 			local ok, codecompanion = pcall(require, "codecompanion")
 			if not ok or type(codecompanion.buf_get_chat) ~= "function" then
@@ -84,7 +88,9 @@ function M.setup()
 	})
 
 	vim.api.nvim_create_autocmd("User", {
+		group = augroup,
 		pattern = "CodeCompanionChatClosed",
+		desc = "token-count.nvim: clear ACP estimated tokens when a CodeCompanion chat is closed",
 		callback = function(args)
 			local bufnr = args and args.data and args.data.bufnr
 			if not bufnr then
